@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from threading import RLock
 from uuid import uuid4
 
@@ -10,6 +11,7 @@ from pydantic import BaseModel
 from spaday import diff
 
 from .models import StudioDocument, apply_operations, find_node, parse_operations
+from .project import export_python
 
 
 class RevisionConflict(ValueError):
@@ -33,10 +35,11 @@ class StudioState(BaseModel):
 class StudioSession:
     """Apply validated edits and manage one transactional pilot preview."""
 
-    def __init__(self, document: StudioDocument) -> None:
+    def __init__(self, document: StudioDocument, *, save_document: Callable[[StudioDocument], None] | None = None) -> None:
         self.state = StudioState(document=document)
         self._history: list[StudioDocument] = []
         self._lock = RLock()
+        self._save_document = save_document
 
     @property
     def active_document(self) -> StudioDocument:
@@ -57,12 +60,22 @@ class StudioSession:
         with self._lock:
             return find_node(self.active_document.root, node_id).model_dump(mode="json")
 
+    def python_source(self) -> str:
+        """Export the canonical document as deterministic spaday Python."""
+        return self.python_export()["source"]
+
+    def python_export(self) -> dict:
+        """Return a matching canonical revision and deterministic Python source."""
+        with self._lock:
+            return {"revision": self.state.revision, "source": export_python(self.state.document)}
+
     def apply(self, expected_revision: int, operations: object) -> dict:
         """Commit semantic operations against the expected canonical revision."""
         parsed = parse_operations(operations)
         with self._lock:
             self._expect_revision(expected_revision)
             candidate = apply_operations(self.state.document, parsed)
+            self._persist(candidate)
             self._history.append(self.state.document.model_copy(deep=True))
             self.state.document = candidate
             self.state.revision += 1
@@ -92,6 +105,7 @@ class StudioSession:
         with self._lock:
             self._expect_preview(preview_id)
             assert self.state.preview is not None
+            self._persist(self.state.preview)
             self._history.append(self.state.document.model_copy(deep=True))
             self.state.document = self.state.preview
             self.state.revision += 1
@@ -111,6 +125,8 @@ class StudioSession:
             self._expect_revision(expected_revision)
             if not self._history:
                 raise ValueError("no committed edit to undo")
+            candidate = self._history[-1]
+            self._persist(candidate)
             self.state.document = self._history.pop()
             self.state.revision += 1
             self._clear_preview()
@@ -130,6 +146,10 @@ class StudioSession:
         self.state.preview = None
         self.state.preview_id = None
         self.state.preview_base_revision = None
+
+    def _persist(self, document: StudioDocument) -> None:
+        if self._save_document is not None:
+            self._save_document(document)
 
 
 __all__ = ["PreviewConflict", "RevisionConflict", "StudioSession", "StudioState"]

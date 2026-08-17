@@ -185,6 +185,7 @@ root = "README.md"
 pages = [
     "docs/src/tutorial.md",
     "docs/src/how-to.md",
+    "docs/src/save-and-export.md",
     "docs/src/reference.md",
     "docs/src/explanation.md",
 ]
