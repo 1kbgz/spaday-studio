@@ -56,6 +56,20 @@ textarea {
   border-radius: 999px;
 }
 
+.studio-export {
+  padding: 5px 9px;
+  color: #dbeafe;
+  border: 1px solid #486080;
+  border-radius: 7px;
+  font-size: 0.78rem;
+  text-decoration: none;
+}
+
+.studio-export:hover {
+  color: white;
+  background: #1d4f91;
+}
+
 .studio-preview-active {
   color: #291900;
   background: #fbbf24;

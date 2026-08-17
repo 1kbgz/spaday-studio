@@ -21,6 +21,7 @@ The pilot includes:
 - a selectable live application canvas and property inspector;
 - revision-checked insert, move, remove, and property operations;
 - transactional MCP preview, commit, discard, inspection, and undo tools;
+- atomic structured-project persistence and deterministic Python export;
 - one transports-backed state shared by browser and agent clients;
 - a Python+JavaScript Copier scaffold, Playwright coverage, and Yardang/Sphinx documentation.
 
@@ -29,21 +30,24 @@ The pilot includes:
 ```bash
 make develop
 make build
-spaday-studio
+spaday-studio --project orbit.studio.json
 ```
 
 Open <http://127.0.0.1:8020>. Select the headline, change its text or style, and apply the edit. The
 browser receives the accepted document through transports and applies a spaday component-tree patch.
+Canonical edits are saved to `orbit.studio.json`. Use **Export Python** to download an ordinary spaday
+`page()` function for the accepted revision.
 
 The MCP endpoint is `http://127.0.0.1:8020/mcp`. Start with the
 [guided tutorial](docs/src/tutorial.md), connect an agent with the
-[MCP how-to guide](docs/src/how-to.md), consult the [API reference](docs/src/reference.md), or read
+[MCP how-to guide](docs/src/how-to.md), [save and export a project](docs/src/save-and-export.md),
+consult the [API reference](docs/src/reference.md), or read
 [why Studio uses a structured document](docs/src/explanation.md).
 
 ## Pilot boundaries
 
-- Documents are in memory; persistence and deterministic Python export are next work.
 - One preview is shared by all clients; per-client drafts and collaboration are not implemented.
 - The inspector edits text and inline style and demonstrates structural operations. Component-schema
   discovery and generated prop editors are not implemented.
 - Arbitrary handwritten Python is not losslessly round-tripped.
+- Python export is one-way generated output; the structured JSON project remains the editable source.

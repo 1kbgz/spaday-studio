@@ -16,6 +16,7 @@ def test_mcp_exposes_inspection_and_transactional_edit_tools():
         "apply_operations",
         "commit_preview",
         "discard_preview",
+        "export_python",
         "inspect_component",
         "preview_operations",
         "undo",
@@ -31,3 +32,16 @@ def test_mcp_returns_structured_component_content():
         return result.structured_content
 
     assert asyncio.run(inspect())["id"] == "headline"
+
+
+def test_mcp_exports_the_canonical_python_source():
+    async def exported() -> dict:
+        server = create_mcp(StudioSession(document.model_copy(deep=True)))
+        result = await server.call_tool("export_python", {})
+        assert isinstance(result, CallToolResult)
+        assert result.structured_content is not None
+        return result.structured_content
+
+    result = asyncio.run(exported())
+    assert result["revision"] == 0
+    assert "def page() -> Component:" in result["source"]

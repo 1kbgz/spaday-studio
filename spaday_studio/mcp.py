@@ -17,6 +17,13 @@ class PreviewResult(BaseModel):
     patch: dict
 
 
+class PythonExport(BaseModel):
+    """Deterministic Python source for one canonical revision."""
+
+    revision: int
+    source: str
+
+
 def create_mcp(session: StudioSession) -> MCPServer:
     """Create an MCP server bound to ``session``."""
     server = MCPServer(
@@ -36,6 +43,11 @@ def create_mcp(session: StudioSession) -> MCPServer:
     def inspect_component(component_id: str) -> StudioNode:
         """Inspect one component by its stable Studio id."""
         return StudioNode.model_validate(session.inspect(component_id))
+
+    @server.tool()
+    def export_python() -> PythonExport:
+        """Export the canonical project as ordinary spaday Python source."""
+        return PythonExport.model_validate(session.python_export())
 
     @server.tool()
     def preview_operations(expected_revision: int, operations: list[StudioOperation]) -> PreviewResult:
@@ -65,4 +77,4 @@ def create_mcp(session: StudioSession) -> MCPServer:
     return server
 
 
-__all__ = ["PreviewResult", "create_mcp"]
+__all__ = ["PreviewResult", "PythonExport", "create_mcp"]
