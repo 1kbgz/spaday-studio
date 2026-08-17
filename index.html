@@ -199,6 +199,7 @@
   <ul>
 <li class="toctree-l1"><a class="reference internal" href="docs/src/tutorial.html">Edit a live spaday application</a></li>
 <li class="toctree-l1"><a class="reference internal" href="docs/src/how-to.html">How to preview an edit through MCP</a></li>
+<li class="toctree-l1"><a class="reference internal" href="docs/src/save-and-export.html">Save and export a Studio project</a></li>
 <li class="toctree-l1"><a class="reference internal" href="docs/src/reference.html">Studio pilot reference</a></li>
 <li class="toctree-l1"><a class="reference internal" href="docs/src/explanation.html">Why Studio edits a structured document</a></li>
 </ul>
@@ -262,6 +263,7 @@ validated semantic edits; spaday applies the resulting tree diff without remount
 <li><p>a selectable live application canvas and property inspector;</p></li>
 <li><p>revision-checked insert, move, remove, and property operations;</p></li>
 <li><p>transactional MCP preview, commit, discard, inspection, and undo tools;</p></li>
+<li><p>atomic structured-project persistence and deterministic Python export;</p></li>
 <li><p>one transports-backed state shared by browser and agent clients;</p></li>
 <li><p>a Python+JavaScript Copier scaffold, Playwright coverage, and Yardang/Sphinx documentation.</p></li>
 </ul>
@@ -270,24 +272,27 @@ validated semantic edits; spaday applies the resulting tree diff without remount
 <h2>Run the pilot<a class="headerlink" href="#run-the-pilot" title="Link to this heading">¶</a></h2>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>make<span class="w"> </span>develop
 make<span class="w"> </span>build
-spaday-studio
+spaday-studio<span class="w"> </span>--project<span class="w"> </span>orbit.studio.json
 </pre></div>
 </div>
 <p>Open <a class="reference external" href="http://127.0.0.1:8020">http://127.0.0.1:8020</a>. Select the headline, change its text or style, and apply the edit. The
-browser receives the accepted document through transports and applies a spaday component-tree patch.</p>
+browser receives the accepted document through transports and applies a spaday component-tree patch.
+Canonical edits are saved to <code class="docutils literal notranslate"><span class="pre">orbit.studio.json</span></code>. Use <strong>Export Python</strong> to download an ordinary spaday
+<code class="docutils literal notranslate"><span class="pre">page()</span></code> function for the accepted revision.</p>
 <p>The MCP endpoint is <code class="docutils literal notranslate"><span class="pre">http://127.0.0.1:8020/mcp</span></code>. Start with the
 <a class="reference internal" href="docs/src/tutorial.html"><span class="std std-doc">guided tutorial</span></a>, connect an agent with the
-<a class="reference internal" href="docs/src/how-to.html"><span class="std std-doc">MCP how-to guide</span></a>, consult the <a class="reference internal" href="docs/src/reference.html"><span class="std std-doc">API reference</span></a>, or read
+<a class="reference internal" href="docs/src/how-to.html"><span class="std std-doc">MCP how-to guide</span></a>, <a class="reference internal" href="docs/src/save-and-export.html"><span class="std std-doc">save and export a project</span></a>,
+consult the <a class="reference internal" href="docs/src/reference.html"><span class="std std-doc">API reference</span></a>, or read
 <a class="reference internal" href="docs/src/explanation.html"><span class="std std-doc">why Studio uses a structured document</span></a>.</p>
 </section>
 <section id="pilot-boundaries">
 <h2>Pilot boundaries<a class="headerlink" href="#pilot-boundaries" title="Link to this heading">¶</a></h2>
 <ul class="simple">
-<li><p>Documents are in memory; persistence and deterministic Python export are next work.</p></li>
 <li><p>One preview is shared by all clients; per-client drafts and collaboration are not implemented.</p></li>
 <li><p>The inspector edits text and inline style and demonstrates structural operations. Component-schema
 discovery and generated prop editors are not implemented.</p></li>
 <li><p>Arbitrary handwritten Python is not losslessly round-tripped.</p></li>
+<li><p>Python export is one-way generated output; the structured JSON project remains the editable source.</p></li>
 </ul>
 </section>
 </section>

@@ -3,10 +3,10 @@
   <head><meta charset="utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
-<link rel="index" title="Index" href="../../genindex.html"><link rel="search" title="Search" href="../../search.html"><link rel="next" title="How to preview an edit through MCP" href="how-to.html"><link rel="prev" title="spaday-studio" href="../../index.html">
+<link rel="index" title="Index" href="../../genindex.html"><link rel="search" title="Search" href="../../search.html"><link rel="next" title="Studio pilot reference" href="reference.html"><link rel="prev" title="How to preview an edit through MCP" href="how-to.html">
 
     <!-- Generated with Sphinx 8.2.3 and Furo 2025.12.19 -->
-        <title>Edit a live spaday application - spaday-studio v0.1.0</title>
+        <title>Save and export a Studio project - spaday-studio v0.1.0</title>
       <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=03e43079" />
     <link rel="stylesheet" type="text/css" href="../../_static/styles/furo.css?v=7bdb33bb" />
     <link rel="stylesheet" type="text/css" href="../../_static/mystnb.11b39860a7a0cbfd473a3ad8a317855267ff0bd372690045ca344a6b62be495e.css" />
@@ -197,9 +197,9 @@
 </form>
 <div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
   <ul class="current">
-<li class="toctree-l1 current current-page"><a class="current reference internal" href="#">Edit a live spaday application</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tutorial.html">Edit a live spaday application</a></li>
 <li class="toctree-l1"><a class="reference internal" href="how-to.html">How to preview an edit through MCP</a></li>
-<li class="toctree-l1"><a class="reference internal" href="save-and-export.html">Save and export a Studio project</a></li>
+<li class="toctree-l1 current current-page"><a class="current reference internal" href="#">Save and export a Studio project</a></li>
 <li class="toctree-l1"><a class="reference internal" href="reference.html">Studio pilot reference</a></li>
 <li class="toctree-l1"><a class="reference internal" href="explanation.html">Why Studio edits a structured document</a></li>
 </ul>
@@ -222,7 +222,7 @@
         </a>
         <div class="content-icon-container">
           <div class="view-this-page">
-  <a class="muted-link" href="../../_sources/docs/src/tutorial.md.txt" title="View this page">
+  <a class="muted-link" href="../../_sources/docs/src/save-and-export.md.txt" title="View this page">
     <svg><use href="#svg-eye"></use></svg>
     <span class="visually-hidden">View this page</span>
   </a>
@@ -240,53 +240,31 @@
           </label>
         </div>
         <article role="main" id="furo-main-content">
-          <section class="tex2jax_ignore mathjax_ignore" id="edit-a-live-spaday-application">
-<h1>Edit a live spaday application<a class="headerlink" href="#edit-a-live-spaday-application" title="Link to this heading">¶</a></h1>
-<p>In this tutorial, we will run the Studio pilot, select a component, and change it without reloading the
-application canvas.</p>
-<section id="install-the-development-environment">
-<h2>Install the development environment<a class="headerlink" href="#install-the-development-environment" title="Link to this heading">¶</a></h2>
-<p>From the repository root, run:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>make<span class="w"> </span>develop
-make<span class="w"> </span>build
+          <section class="tex2jax_ignore mathjax_ignore" id="save-and-export-a-studio-project">
+<h1>Save and export a Studio project<a class="headerlink" href="#save-and-export-a-studio-project" title="Link to this heading">¶</a></h1>
+<p>This guide shows how to keep canonical Studio edits across restarts and export them as ordinary spaday
+Python.</p>
+<section id="start-with-a-project-file">
+<h2>Start with a project file<a class="headerlink" href="#start-with-a-project-file" title="Link to this heading">¶</a></h2>
+<p>Pass a project path when starting Studio:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>spaday-studio<span class="w"> </span>--project<span class="w"> </span>applications/orbit.studio.json
 </pre></div>
 </div>
-<p>The build creates the Studio browser bundle inside the Python package.</p>
+<p>Studio loads an existing file or creates its parent directories and seeds a new file from the example
+document. Canonical inspector edits, committed previews, and undo results replace this file atomically.
+Uncommitted previews are never written.</p>
 </section>
-<section id="start-studio">
-<h2>Start Studio<a class="headerlink" href="#start-studio" title="Link to this heading">¶</a></h2>
-<p>Run:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>spaday-studio<span class="w"> </span>--project<span class="w"> </span>orbit.studio.json
+<section id="export-python-in-the-browser">
+<h2>Export Python in the browser<a class="headerlink" href="#export-python-in-the-browser" title="Link to this heading">¶</a></h2>
+<p>Click <strong>Export Python</strong> in the Studio header. The browser downloads <code class="docutils literal notranslate"><span class="pre">spaday_app.py</span></code>, which exports a
+<code class="docutils literal notranslate"><span class="pre">page()</span></code> function returning the accepted component tree.</p>
+<p>To fetch the same source directly, request:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>curl<span class="w"> </span>--fail<span class="w"> </span>http://127.0.0.1:8020/api/export/python<span class="w"> </span>--output<span class="w"> </span>spaday_app.py
 </pre></div>
 </div>
-<p>Open <a class="reference external" href="http://127.0.0.1:8020">http://127.0.0.1:8020</a>. You should see a component tree on the left, an operations dashboard in
-the center, and an inspector on the right. The header should show <code class="docutils literal notranslate"><span class="pre">Revision</span> <span class="pre">0</span></code> and <code class="docutils literal notranslate"><span class="pre">Canonical</span></code>.
-Studio creates <code class="docutils literal notranslate"><span class="pre">orbit.studio.json</span></code> from the example document.</p>
-</section>
-<section id="select-and-edit-the-headline">
-<h2>Select and edit the headline<a class="headerlink" href="#select-and-edit-the-headline" title="Link to this heading">¶</a></h2>
-<p>Click the large headline in the canvas. The inspector should identify <code class="docutils literal notranslate"><span class="pre">h1</span> <span class="pre">·</span> <span class="pre">headline</span></code>.</p>
-<p>Replace its text with:</p>
-<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>Ship the interface while it is running.
-</pre></div>
-</div>
-<p>Click <strong>Apply edit</strong>. The revision changes to <code class="docutils literal notranslate"><span class="pre">Revision</span> <span class="pre">1</span></code>, and the live headline changes without the
-canvas flashing or reloading.</p>
-</section>
-<section id="make-a-structural-edit">
-<h2>Make a structural edit<a class="headerlink" href="#make-a-structural-edit" title="Link to this heading">¶</a></h2>
-<p>Select <code class="docutils literal notranslate"><span class="pre">section</span> <span class="pre">·</span> <span class="pre">metrics</span></code> in the component tree and click <strong>Add text child</strong>. A new paragraph appears
-inside the metric grid, and the revision advances again.</p>
-<p>Select the new paragraph and click <strong>Move up</strong> or <strong>Remove</strong>. Each accepted operation arrives as a new
-authoritative transports revision and is reconciled through spaday’s keyed tree patch.</p>
-</section>
-<section id="export-the-accepted-application">
-<h2>Export the accepted application<a class="headerlink" href="#export-the-accepted-application" title="Link to this heading">¶</a></h2>
-<p>Click <strong>Export Python</strong> in the header. The downloaded <code class="docutils literal notranslate"><span class="pre">spaday_app.py</span></code> contains a standard spaday
-<code class="docutils literal notranslate"><span class="pre">page()</span></code> function for the current canonical revision. Your edits also remain in <code class="docutils literal notranslate"><span class="pre">orbit.studio.json</span></code>, so
-stopping and restarting the same command restores the project.</p>
-<p>You now have a running structured-document editing loop. Continue with
-<a class="reference internal" href="how-to.html"><span class="std std-doc">preview an edit through MCP</span></a> to drive the same canvas from an agent client.</p>
+<p>The MCP <code class="docutils literal notranslate"><span class="pre">export_python</span></code> tool returns the canonical revision and source as structured content.</p>
+<p>Treat the JSON project as the editable source and the Python file as generated output. Export again after
+later edits instead of modifying generated Python and expecting Studio to import those changes.</p>
 </section>
 </section>
 
@@ -295,23 +273,23 @@ stopping and restarting the same command restores the project.</p>
       <footer>
         
         <div class="related-pages">
-          <a class="next-page" href="how-to.html">
+          <a class="next-page" href="reference.html">
               <div class="page-info">
                 <div class="context">
                   <span>Next</span>
                 </div>
-                <div class="title">How to preview an edit through MCP</div>
+                <div class="title">Studio pilot reference</div>
               </div>
               <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
             </a>
-          <a class="prev-page" href="../../index.html">
+          <a class="prev-page" href="how-to.html">
               <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
               <div class="page-info">
                 <div class="context">
                   <span>Previous</span>
                 </div>
                 
-                <div class="title">Home</div>
+                <div class="title">How to preview an edit through MCP</div>
                 
               </div>
             </a>
@@ -345,12 +323,9 @@ stopping and restarting the same command restores the project.</p>
         <div class="toc-tree-container">
           <div class="toc-tree">
             <ul>
-<li><a class="reference internal" href="#">Edit a live spaday application</a><ul>
-<li><a class="reference internal" href="#install-the-development-environment">Install the development environment</a></li>
-<li><a class="reference internal" href="#start-studio">Start Studio</a></li>
-<li><a class="reference internal" href="#select-and-edit-the-headline">Select and edit the headline</a></li>
-<li><a class="reference internal" href="#make-a-structural-edit">Make a structural edit</a></li>
-<li><a class="reference internal" href="#export-the-accepted-application">Export the accepted application</a></li>
+<li><a class="reference internal" href="#">Save and export a Studio project</a><ul>
+<li><a class="reference internal" href="#start-with-a-project-file">Start with a project file</a></li>
+<li><a class="reference internal" href="#export-python-in-the-browser">Export Python in the browser</a></li>
 </ul>
 </li>
 </ul>

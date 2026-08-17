@@ -3,7 +3,7 @@
   <head><meta charset="utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
-<link rel="index" title="Index" href="../../genindex.html"><link rel="search" title="Search" href="../../search.html"><link rel="next" title="Why Studio edits a structured document" href="explanation.html"><link rel="prev" title="How to preview an edit through MCP" href="how-to.html">
+<link rel="index" title="Index" href="../../genindex.html"><link rel="search" title="Search" href="../../search.html"><link rel="next" title="Why Studio edits a structured document" href="explanation.html"><link rel="prev" title="Save and export a Studio project" href="save-and-export.html">
 
     <!-- Generated with Sphinx 8.2.3 and Furo 2025.12.19 -->
         <title>Studio pilot reference - spaday-studio v0.1.0</title>
@@ -199,6 +199,7 @@
   <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="tutorial.html">Edit a live spaday application</a></li>
 <li class="toctree-l1"><a class="reference internal" href="how-to.html">How to preview an edit through MCP</a></li>
+<li class="toctree-l1"><a class="reference internal" href="save-and-export.html">Save and export a Studio project</a></li>
 <li class="toctree-l1 current current-page"><a class="current reference internal" href="#">Studio pilot reference</a></li>
 <li class="toctree-l1"><a class="reference internal" href="explanation.html">Why Studio edits a structured document</a></li>
 </ul>
@@ -263,8 +264,8 @@
 <td><p>HTML or registered custom-element tag.</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">key</span></code></p></td>
-<td><p>`str</p></td>
-<td><p>None`</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">str</span> <span class="pre">|</span> <span class="pre">None</span></code></p></td>
+<td><p>Optional sibling reconciliation key.</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">props</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">dict[str,</span> <span class="pre">JsonValue]</span></code></p></td>
@@ -322,7 +323,7 @@ and malformed values reject the complete batch.</p>
 <h2><code class="docutils literal notranslate"><span class="pre">StudioSession</span></code><a class="headerlink" href="#studiosession" title="Link to this heading">¶</a></h2>
 <dl class="py class">
 <dt class="sig sig-object py" id="spaday_studio.StudioSession">
-<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">spaday_studio.</span></span><span class="sig-name descname"><span class="pre">StudioSession</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">document</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#spaday_studio.StudioDocument" title="spaday_studio.models.StudioDocument"><span class="pre">StudioDocument</span></a></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/spaday_studio/session.html#StudioSession"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#spaday_studio.StudioSession" title="Link to this definition">¶</a></dt>
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">spaday_studio.</span></span><span class="sig-name descname"><span class="pre">StudioSession</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">document</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#spaday_studio.StudioDocument" title="spaday_studio.models.StudioDocument"><span class="pre">StudioDocument</span></a></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">save_document</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Callable</span><span class="p"><span class="pre">[</span></span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#spaday_studio.StudioDocument" title="spaday_studio.models.StudioDocument"><span class="pre">StudioDocument</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">None</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/spaday_studio/session.html#StudioSession"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#spaday_studio.StudioSession" title="Link to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
 <p>Apply validated edits and manage one transactional pilot preview.</p>
 <dl class="py property">
@@ -359,6 +360,18 @@ and malformed values reject the complete batch.</p>
 <dt class="sig sig-object py" id="spaday_studio.StudioSession.preview">
 <span class="sig-name descname"><span class="pre">preview</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">expected_revision</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">operations</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">object</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">dict</span></span></span><a class="reference internal" href="../../_modules/spaday_studio/session.html#StudioSession.preview"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#spaday_studio.StudioSession.preview" title="Link to this definition">¶</a></dt>
 <dd><p>Publish a non-canonical draft and return its spaday tree patch.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="spaday_studio.StudioSession.python_export">
+<span class="sig-name descname"><span class="pre">python_export</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">dict</span></span></span><a class="reference internal" href="../../_modules/spaday_studio/session.html#StudioSession.python_export"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#spaday_studio.StudioSession.python_export" title="Link to this definition">¶</a></dt>
+<dd><p>Return a matching canonical revision and deterministic Python source.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="spaday_studio.StudioSession.python_source">
+<span class="sig-name descname"><span class="pre">python_source</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="reference internal" href="../../_modules/spaday_studio/session.html#StudioSession.python_source"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#spaday_studio.StudioSession.python_source" title="Link to this definition">¶</a></dt>
+<dd><p>Export the canonical document as deterministic spaday Python.</p>
 </dd></dl>
 
 <dl class="py method">
@@ -419,6 +432,42 @@ and malformed values reject the complete batch.</p>
 
 </dd></dl>
 
+<dl class="py class">
+<dt class="sig sig-object py" id="spaday_studio.ProjectFile">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">spaday_studio.</span></span><span class="sig-name descname"><span class="pre">ProjectFile</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Path</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/spaday_studio/project.html#ProjectFile"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#spaday_studio.ProjectFile" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>A JSON Studio document persisted with atomic file replacement.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="spaday_studio.ProjectFile.load">
+<span class="sig-name descname"><span class="pre">load</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#spaday_studio.StudioDocument" title="spaday_studio.models.StudioDocument"><span class="pre">StudioDocument</span></a></span></span><a class="reference internal" href="../../_modules/spaday_studio/project.html#ProjectFile.load"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#spaday_studio.ProjectFile.load" title="Link to this definition">¶</a></dt>
+<dd><p>Load and validate the project document.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="spaday_studio.ProjectFile.save">
+<span class="sig-name descname"><span class="pre">save</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">document</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#spaday_studio.StudioDocument" title="spaday_studio.models.StudioDocument"><span class="pre">StudioDocument</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="reference internal" href="../../_modules/spaday_studio/project.html#ProjectFile.save"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#spaday_studio.ProjectFile.save" title="Link to this definition">¶</a></dt>
+<dd><p>Atomically replace the project with <code class="docutils literal notranslate"><span class="pre">document</span></code>.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="spaday_studio.export_python">
+<span class="sig-prename descclassname"><span class="pre">spaday_studio.</span></span><span class="sig-name descname"><span class="pre">export_python</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">document</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#spaday_studio.StudioDocument" title="spaday_studio.models.StudioDocument"><span class="pre">StudioDocument</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="reference internal" href="../../_modules/spaday_studio/project.html#export_python"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#spaday_studio.export_python" title="Link to this definition">¶</a></dt>
+<dd><p>Render <code class="docutils literal notranslate"><span class="pre">document</span></code> as deterministic, ordinary spaday Python authoring code.</p>
+</dd></dl>
+
+</section>
+<section id="project-persistence-and-python-export">
+<h2>Project persistence and Python export<a class="headerlink" href="#project-persistence-and-python-export" title="Link to this heading">¶</a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">ProjectFile.save()</span></code> serializes canonical documents as indented, key-sorted UTF-8 JSON and replaces the
+target atomically. <code class="docutils literal notranslate"><span class="pre">ProjectFile.load()</span></code> validates the complete file as a <code class="docutils literal notranslate"><span class="pre">StudioDocument</span></code>.</p>
+<p><code class="docutils literal notranslate"><span class="pre">export_python()</span></code> returns deterministic source containing a <code class="docutils literal notranslate"><span class="pre">page()</span> <span class="pre">-&gt;</span> <span class="pre">Component</span></code> function. Generated
+nodes use stable numbered variables, retain explicit keys and Studio IDs, sort property and slot names,
+and preserve child order within each slot. The export contains the canonical document, never an active
+preview.</p>
+<p>The <code class="docutils literal notranslate"><span class="pre">spaday-studio</span> <span class="pre">--project</span> <span class="pre">PATH</span></code> option loads <code class="docutils literal notranslate"><span class="pre">PATH</span></code> when present. Otherwise it creates <code class="docutils literal notranslate"><span class="pre">PATH</span></code> from the
+initial document. Without <code class="docutils literal notranslate"><span class="pre">--project</span></code>, the session remains in memory.</p>
 </section>
 <section id="http-and-websocket-endpoints">
 <h2>HTTP and WebSocket endpoints<a class="headerlink" href="#http-and-websocket-endpoints" title="Link to this heading">¶</a></h2>
@@ -439,13 +488,16 @@ and malformed values reject the complete batch.</p>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">GET</span> <span class="pre">/api/project</span></code></p></td>
 <td><p>Plain Studio state and transports model ID.</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">POST</span> <span class="pre">/api/operations</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">GET</span> <span class="pre">/api/export/python</span></code></p></td>
+<td><p>Download Python for the canonical revision.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">POST</span> <span class="pre">/api/operations</span></code></p></td>
 <td><p>Commit a revision-checked operation batch.</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">WS</span> <span class="pre">/ws</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">WS</span> <span class="pre">/ws</span></code></p></td>
 <td><p>Transports mirror carrying canonical and preview state.</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">/mcp</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">/mcp</span></code></p></td>
 <td><p>MCP Streamable HTTP endpoint.</p></td>
 </tr>
 </tbody>
@@ -456,7 +508,7 @@ and malformed values reject the complete batch.</p>
 </section>
 <section id="mcp-surface">
 <h2>MCP surface<a class="headerlink" href="#mcp-surface" title="Link to this heading">¶</a></h2>
-<p>The <code class="docutils literal notranslate"><span class="pre">spaday://project</span></code> resource returns current state. Tools are <code class="docutils literal notranslate"><span class="pre">inspect_component</span></code>,
+<p>The <code class="docutils literal notranslate"><span class="pre">spaday://project</span></code> resource returns current state. Tools are <code class="docutils literal notranslate"><span class="pre">inspect_component</span></code>, <code class="docutils literal notranslate"><span class="pre">export_python</span></code>,
 <code class="docutils literal notranslate"><span class="pre">preview_operations</span></code>, <code class="docutils literal notranslate"><span class="pre">commit_preview</span></code>, <code class="docutils literal notranslate"><span class="pre">discard_preview</span></code>, <code class="docutils literal notranslate"><span class="pre">apply_operations</span></code>, and <code class="docutils literal notranslate"><span class="pre">undo</span></code>.</p>
 <p>The pilot supports one shared preview. Creating another preview replaces it.</p>
 </section>
@@ -476,14 +528,14 @@ and malformed values reject the complete batch.</p>
               </div>
               <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
             </a>
-          <a class="prev-page" href="how-to.html">
+          <a class="prev-page" href="save-and-export.html">
               <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
               <div class="page-info">
                 <div class="context">
                   <span>Previous</span>
                 </div>
                 
-                <div class="title">How to preview an edit through MCP</div>
+                <div class="title">Save and export a Studio project</div>
                 
               </div>
             </a>
@@ -528,6 +580,8 @@ and malformed values reject the complete batch.</p>
 <li><a class="reference internal" href="#spaday_studio.StudioSession.discard_preview"><code class="docutils literal notranslate"><span class="pre">StudioSession.discard_preview()</span></code></a></li>
 <li><a class="reference internal" href="#spaday_studio.StudioSession.inspect"><code class="docutils literal notranslate"><span class="pre">StudioSession.inspect()</span></code></a></li>
 <li><a class="reference internal" href="#spaday_studio.StudioSession.preview"><code class="docutils literal notranslate"><span class="pre">StudioSession.preview()</span></code></a></li>
+<li><a class="reference internal" href="#spaday_studio.StudioSession.python_export"><code class="docutils literal notranslate"><span class="pre">StudioSession.python_export()</span></code></a></li>
+<li><a class="reference internal" href="#spaday_studio.StudioSession.python_source"><code class="docutils literal notranslate"><span class="pre">StudioSession.python_source()</span></code></a></li>
 <li><a class="reference internal" href="#spaday_studio.StudioSession.render"><code class="docutils literal notranslate"><span class="pre">StudioSession.render()</span></code></a></li>
 <li><a class="reference internal" href="#spaday_studio.StudioSession.snapshot"><code class="docutils literal notranslate"><span class="pre">StudioSession.snapshot()</span></code></a></li>
 <li><a class="reference internal" href="#spaday_studio.StudioSession.undo"><code class="docutils literal notranslate"><span class="pre">StudioSession.undo()</span></code></a></li>
@@ -543,8 +597,15 @@ and malformed values reject the complete batch.</p>
 <li><a class="reference internal" href="#spaday_studio.StudioNode.model_config"><code class="docutils literal notranslate"><span class="pre">StudioNode.model_config</span></code></a></li>
 </ul>
 </li>
+<li><a class="reference internal" href="#spaday_studio.ProjectFile"><code class="docutils literal notranslate"><span class="pre">ProjectFile</span></code></a><ul>
+<li><a class="reference internal" href="#spaday_studio.ProjectFile.load"><code class="docutils literal notranslate"><span class="pre">ProjectFile.load()</span></code></a></li>
+<li><a class="reference internal" href="#spaday_studio.ProjectFile.save"><code class="docutils literal notranslate"><span class="pre">ProjectFile.save()</span></code></a></li>
 </ul>
 </li>
+<li><a class="reference internal" href="#spaday_studio.export_python"><code class="docutils literal notranslate"><span class="pre">export_python()</span></code></a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#project-persistence-and-python-export">Project persistence and Python export</a></li>
 <li><a class="reference internal" href="#http-and-websocket-endpoints">HTTP and WebSocket endpoints</a></li>
 <li><a class="reference internal" href="#mcp-surface">MCP surface</a></li>
 </ul>
