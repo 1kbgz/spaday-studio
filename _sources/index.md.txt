@@ -1,0 +1,68 @@
+```{toctree}
+---
+maxdepth: 2
+hidden: true
+---
+
+
+
+docs/src/tutorial.md
+
+docs/src/how-to.md
+
+docs/src/reference.md
+
+docs/src/explanation.md
+
+
+```
+
+# spaday-studio
+
+AI-native visual development environment for spaday
+
+[![Build Status](https://github.com/1kbgz/spaday-studio/actions/workflows/build.yaml/badge.svg?branch=main&event=push)](https://github.com/1kbgz/spaday-studio/actions/workflows/build.yaml)
+[![codecov](https://codecov.io/gh/1kbgz/spaday-studio/branch/main/graph/badge.svg)](https://codecov.io/gh/1kbgz/spaday-studio)
+[![License](https://img.shields.io/github/license/1kbgz/spaday-studio)](https://github.com/1kbgz/spaday-studio)
+[![PyPI](https://img.shields.io/pypi/v/spaday-studio.svg)](https://pypi.python.org/pypi/spaday-studio)
+
+## Overview
+
+> [!NOTE]
+> This library was generated using [copier](https://copier.readthedocs.io/en/stable/) from the [Base Python Project Template repository](https://github.com/python-project-templates/base).
+
+spaday-studio is a pilot AI-native visual development environment built on spaday's real component
+runtime. A structured project document is mirrored through transports; browser and MCP clients submit
+validated semantic edits; spaday applies the resulting tree diff without remounting unaffected elements.
+
+The pilot includes:
+
+- a selectable live application canvas and property inspector;
+- revision-checked insert, move, remove, and property operations;
+- transactional MCP preview, commit, discard, inspection, and undo tools;
+- one transports-backed state shared by browser and agent clients;
+- a Python+JavaScript Copier scaffold, Playwright coverage, and Yardang/Sphinx documentation.
+
+## Run the pilot
+
+```bash
+make develop
+make build
+spaday-studio
+```
+
+Open <http://127.0.0.1:8020>. Select the headline, change its text or style, and apply the edit. The
+browser receives the accepted document through transports and applies a spaday component-tree patch.
+
+The MCP endpoint is `http://127.0.0.1:8020/mcp`. Start with the
+[guided tutorial](docs/src/tutorial.md), connect an agent with the
+[MCP how-to guide](docs/src/how-to.md), consult the [API reference](docs/src/reference.md), or read
+[why Studio uses a structured document](docs/src/explanation.md).
+
+## Pilot boundaries
+
+- Documents are in memory; persistence and deterministic Python export are next work.
+- One preview is shared by all clients; per-client drafts and collaboration are not implemented.
+- The inspector edits text and inline style and demonstrates structural operations. Component-schema
+  discovery and generated prop editors are not implemented.
+- Arbitrary handwritten Python is not losslessly round-tripped.
