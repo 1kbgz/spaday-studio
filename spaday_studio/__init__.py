@@ -2,6 +2,7 @@ from pathlib import Path
 
 from spaday import ComponentPackage
 
+from .catalog import ComponentCatalog, ComponentSchema, ComponentSummary, PropertySchema, discover_catalog
 from .models import (
     InsertNode,
     MoveNode,
@@ -23,10 +24,14 @@ package = ComponentPackage(
 )
 
 __all__ = [
+    "ComponentCatalog",
+    "ComponentSchema",
+    "ComponentSummary",
     "InsertNode",
     "MoveNode",
     "PreviewConflict",
     "ProjectFile",
+    "PropertySchema",
     "RemoveNode",
     "RevisionConflict",
     "SetProp",
@@ -35,6 +40,7 @@ __all__ = [
     "StudioSession",
     "StudioState",
     "UnsetProp",
+    "discover_catalog",
     "export_python",
     "package",
 ]

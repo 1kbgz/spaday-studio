@@ -4,14 +4,18 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-from collections.abc import AsyncIterator
+import html
+from collections.abc import AsyncIterator, Sequence
 from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 
 import transports
 from pydantic import ValidationError
+from spaday import resolve_component_packages
 from spaday.backends.starlette import mount
+from spaday.packages import package_url_prefix
 
+from .catalog import discover_catalog
 from .example import document as example_document
 from .mcp import create_mcp
 from .models import StudioDocument
@@ -21,10 +25,15 @@ from .session import PreviewConflict, RevisionConflict, StudioSession
 HERE = Path(__file__).parent
 
 
-def create_app(document: StudioDocument | None = None, *, project_path: str | Path | None = None):
+def create_app(
+    document: StudioDocument | None = None,
+    *,
+    project_path: str | Path | None = None,
+    packages: Sequence[str] = (),
+):
     """Create the pilot ASGI application for ``document``."""
     from starlette.applications import Starlette
-    from starlette.responses import JSONResponse, PlainTextResponse
+    from starlette.responses import HTMLResponse, JSONResponse, PlainTextResponse
     from starlette.routing import Mount, Route, WebSocketRoute
 
     project_file = ProjectFile(project_path) if project_path is not None else None
@@ -35,14 +44,29 @@ def create_app(document: StudioDocument | None = None, *, project_path: str | Pa
         else:
             project_file.save(initial_document)
     studio = StudioSession(initial_document, save_document=project_file.save if project_file is not None else None)
+    selected_packages = resolve_component_packages(packages)
+    component_catalog = discover_catalog(list(packages))
+    package_tags = []
+    for selected_package in selected_packages:
+        prefix = package_url_prefix(selected_package)
+        for kind, path in selected_package.assets:
+            url = html.escape(f"{prefix}/{path}", quote=True)
+            package_tags.append(f'<link rel="stylesheet" href="{url}" />' if kind == "css" else f'<script type="module" src="{url}"></script>')
+    studio_html = (HERE / "index.html").read_text(encoding="utf-8").replace("<!-- component-packages -->", "\n    ".join(package_tags))
     transport_session = transports.Session()
     model_id = transport_session.host(studio.state)
     broadcaster = transports.Server(transport_session)
-    mcp = create_mcp(studio)
+    mcp = create_mcp(studio, component_catalog)
     mcp_app = mcp.streamable_http_app(streamable_http_path="/")
 
     async def project(_request):
         return JSONResponse({"model_id": model_id, **studio.snapshot()})
+
+    async def homepage(_request):
+        return HTMLResponse(studio_html)
+
+    async def catalog(_request):
+        return JSONResponse(component_catalog.model_dump(mode="json"))
 
     async def python_export(_request):
         return PlainTextResponse(
@@ -77,15 +101,17 @@ def create_app(document: StudioDocument | None = None, *, project_path: str | Pa
         studio.render,
         html=HERE / "index.html",
         layout="installed",
-        packages=["spaday_studio:package"],
+        packages=["spaday_studio:package", *selected_packages],
         routes=[
             WebSocketRoute("/ws", transports.ws_endpoint(broadcaster)),
             Route("/api/project", project),
+            Route("/api/catalog", catalog),
             Route("/api/export/python", python_export),
             Route("/api/operations", operations, methods=["POST"]),
         ],
         title="spaday Studio",
     )
+    app.routes.insert(0, Route("/", homepage))
     app.routes.append(Mount("/mcp", app=mcp_app))
     app.state.studio = studio
     app.state.model_id = model_id
@@ -98,11 +124,12 @@ def main() -> None:
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", default=8020, type=int)
     parser.add_argument("--project", type=Path, help="load or create a durable Studio JSON project")
+    parser.add_argument("--package", action="append", default=[], help="select an installed spaday component package (repeatable)")
     args = parser.parse_args()
 
     import uvicorn
 
-    uvicorn.run(create_app(project_path=args.project), host=args.host, port=args.port)
+    uvicorn.run(create_app(project_path=args.project, packages=args.package), host=args.host, port=args.port)
 
 
 if __name__ == "__main__":
