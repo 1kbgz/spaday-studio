@@ -60,3 +60,32 @@ def test_undo_restores_previous_document_as_a_new_revision():
 
     assert result["revision"] == 2
     assert studio.state.document.root.slots["default"][0].props["textContent"] == "Before"
+
+
+def test_only_canonical_changes_are_persisted():
+    saved: list[StudioDocument] = []
+    studio = StudioSession(session().state.document, save_document=lambda document: saved.append(document.model_copy(deep=True)))
+
+    preview = studio.preview(0, EDIT)
+    assert "'Before'" in studio.python_source()
+    studio.discard_preview(preview["preview_id"])
+    assert saved == []
+
+    preview = studio.preview(0, EDIT)
+    studio.commit_preview(preview["preview_id"])
+    studio.undo(1)
+
+    assert [item.root.slots["default"][0].props["textContent"] for item in saved] == ["After", "Before"]
+
+
+def test_failed_persistence_does_not_change_session_state():
+    def fail(_document: StudioDocument) -> None:
+        raise OSError("disk full")
+
+    studio = StudioSession(session().state.document, save_document=fail)
+
+    with pytest.raises(OSError, match="disk full"):
+        studio.apply(0, EDIT)
+
+    assert studio.state.revision == 0
+    assert studio.state.document.root.slots["default"][0].props["textContent"] == "Before"
