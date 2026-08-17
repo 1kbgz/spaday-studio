@@ -3,10 +3,10 @@
   <head><meta charset="utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
-<link rel="index" title="Index" href="../../genindex.html"><link rel="search" title="Search" href="../../search.html"><link rel="prev" title="Studio pilot reference" href="reference.html">
+<link rel="index" title="Index" href="../../genindex.html"><link rel="search" title="Search" href="../../search.html"><link rel="next" title="Studio pilot reference" href="reference.html"><link rel="prev" title="Save and export a Studio project" href="save-and-export.html">
 
     <!-- Generated with Sphinx 8.2.3 and Furo 2025.12.19 -->
-        <title>Why Studio edits a structured document - spaday-studio v0.1.0</title>
+        <title>Use an installed component package - spaday-studio v0.1.0</title>
       <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=03e43079" />
     <link rel="stylesheet" type="text/css" href="../../_static/styles/furo.css?v=7bdb33bb" />
     <link rel="stylesheet" type="text/css" href="../../_static/mystnb.11b39860a7a0cbfd473a3ad8a317855267ff0bd372690045ca344a6b62be495e.css" />
@@ -178,7 +178,7 @@
           <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
         </button>
       </div>
-      <label class="toc-overlay-icon toc-header-icon no-toc" for="__toc">
+      <label class="toc-overlay-icon toc-header-icon" for="__toc">
         <span class="icon"><svg><use href="#svg-toc"></use></svg></span>
       </label>
     </div>
@@ -200,9 +200,9 @@
 <li class="toctree-l1"><a class="reference internal" href="tutorial.html">Edit a live spaday application</a></li>
 <li class="toctree-l1"><a class="reference internal" href="how-to.html">How to preview an edit through MCP</a></li>
 <li class="toctree-l1"><a class="reference internal" href="save-and-export.html">Save and export a Studio project</a></li>
-<li class="toctree-l1"><a class="reference internal" href="use-component-package.html">Use an installed component package</a></li>
+<li class="toctree-l1 current current-page"><a class="current reference internal" href="#">Use an installed component package</a></li>
 <li class="toctree-l1"><a class="reference internal" href="reference.html">Studio pilot reference</a></li>
-<li class="toctree-l1 current current-page"><a class="current reference internal" href="#">Why Studio edits a structured document</a></li>
+<li class="toctree-l1"><a class="reference internal" href="explanation.html">Why Studio edits a structured document</a></li>
 </ul>
 
 </div>
@@ -223,7 +223,7 @@
         </a>
         <div class="content-icon-container">
           <div class="view-this-page">
-  <a class="muted-link" href="../../_sources/docs/src/explanation.md.txt" title="View this page">
+  <a class="muted-link" href="../../_sources/docs/src/use-component-package.md.txt" title="View this page">
     <svg><use href="#svg-eye"></use></svg>
     <span class="visually-hidden">View this page</span>
   </a>
@@ -236,39 +236,39 @@
               <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
             </button>
           </div>
-          <label class="toc-overlay-icon toc-content-icon no-toc" for="__toc">
+          <label class="toc-overlay-icon toc-content-icon" for="__toc">
             <span class="icon"><svg><use href="#svg-toc"></use></svg></span>
           </label>
         </div>
         <article role="main" id="furo-main-content">
-          <section class="tex2jax_ignore mathjax_ignore" id="why-studio-edits-a-structured-document">
-<h1>Why Studio edits a structured document<a class="headerlink" href="#why-studio-edits-a-structured-document" title="Link to this heading">¶</a></h1>
-<p>Spaday applications are authored in Python, but the browser ultimately receives a serializable component
-tree. That tree is a stronger editing boundary than the DOM: it retains component tags, named slots,
-bindings, actions, ordinary property values, and stable keyed identity without exposing browser-internal
-state.</p>
-<p>Studio places a structured project document one level above that wire tree. Properties remain ordinary
-JSON values, and every component gains a globally stable authoring ID. Semantic operations can therefore
-refer to a component without depending on its current DOM path or confusing authoring identity with a key
-that is only meaningful among siblings.</p>
-<p>This boundary also constrains an agent. Instead of producing arbitrary JavaScript or replacing HTML, the
-agent proposes a small validated operation batch against an expected revision. Studio compiles the draft,
-spaday computes its normal tree diff, and the browser applies that diff to the real application. Unaffected
-custom elements keep their identity and live state.</p>
-<p>The structured document does not claim to represent every possible Python program. Loops, data-dependent
-factories, side effects, and arbitrary callables cannot be reconstructed reliably from visual changes.
-Starting with a document makes preview, validation, undo, collaboration, and deterministic export tractable.
-A later source adapter can support recognized constructor expressions or editor-owned source regions while
-leaving unrestricted Python components as opaque extension points.</p>
-<p>The persisted JSON document is therefore the editable source of truth. Python export is deliberately
-one-way: it produces normal, readable spaday authoring code for deployment or further manual work without
-pretending Studio can reconstruct the structured document after arbitrary Python edits. This keeps file
-saves lossless for Studio while making its output useful outside Studio.</p>
-<p>Transports connects the ownership layers. Python holds the authoritative state, browser canvases mirror its
-revisions, and MCP clients use the same session. Runtime datasets stay outside the document so a large table
-or fast chart feed does not become editor state or model context. Pyodide can eventually host the same
-compiler and session in a worker for zero-install previews, while filesystem and git workflows remain on a
-server.</p>
+          <section class="tex2jax_ignore mathjax_ignore" id="use-an-installed-component-package">
+<h1>Use an installed component package<a class="headerlink" href="#use-an-installed-component-package" title="Link to this heading">¶</a></h1>
+<p>This guide shows how to load an installed spaday peer package into Studio and use its typed component
+properties in the editor.</p>
+<section id="install-and-select-the-package">
+<h2>Install and select the package<a class="headerlink" href="#install-and-select-the-package" title="Link to this heading">¶</a></h2>
+<p>Install the package in Studio’s environment. For example:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>uv<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>spaday-webawesome
+</pre></div>
+</div>
+<p>Select its spaday entry-point name when starting Studio:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>spaday-studio<span class="w"> </span>--project<span class="w"> </span>orbit.studio.json<span class="w"> </span>--package<span class="w"> </span>webawesome
+</pre></div>
+</div>
+<p>Repeat <code class="docutils literal notranslate"><span class="pre">--package</span></code> to select more than one package. Studio lists other installed package names, but it
+imports schemas and injects browser assets only for selected packages.</p>
+</section>
+<section id="insert-and-configure-a-component">
+<h2>Insert and configure a component<a class="headerlink" href="#insert-and-configure-a-component" title="Link to this heading">¶</a></h2>
+<p>Select a container in the component tree. In <strong>Insert into selection</strong>, open the <code class="docutils literal notranslate"><span class="pre">webawesome</span></code> group,
+choose <code class="docutils literal notranslate"><span class="pre">WaButton</span> <span class="pre">·</span> <span class="pre">&lt;wa-button&gt;</span></code>, and click <strong>Add component</strong>.</p>
+<p>Select the inserted button. Its inspector controls come from the typed Python constructor: booleans use
+true/false selectors, literal choices use enumerated selectors, numbers use number inputs, and structured
+values use JSON text areas. Change a property and click <strong>Apply properties</strong>.</p>
+<p>Use <strong>Unset</strong> beside an authored property to remove it instead of assigning another value. Studio submits
+the resulting <code class="docutils literal notranslate"><span class="pre">set_prop</span></code> or <code class="docutils literal notranslate"><span class="pre">unset_prop</span></code> operation through the same revision-checked editing path as a
+built-in HTML component.</p>
+</section>
 </section>
 
         </article>
@@ -276,15 +276,23 @@ server.</p>
       <footer>
         
         <div class="related-pages">
-          
-          <a class="prev-page" href="reference.html">
+          <a class="next-page" href="reference.html">
+              <div class="page-info">
+                <div class="context">
+                  <span>Next</span>
+                </div>
+                <div class="title">Studio pilot reference</div>
+              </div>
+              <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
+            </a>
+          <a class="prev-page" href="save-and-export.html">
               <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
               <div class="page-info">
                 <div class="context">
                   <span>Previous</span>
                 </div>
                 
-                <div class="title">Studio pilot reference</div>
+                <div class="title">Save and export a Studio project</div>
                 
               </div>
             </a>
@@ -306,8 +314,28 @@ server.</p>
         
       </footer>
     </div>
-    <aside class="toc-drawer no-toc">
+    <aside class="toc-drawer">
       
+      
+      <div class="toc-sticky toc-scroll">
+        <div class="toc-title-container">
+          <span class="toc-title">
+            On this page
+          </span>
+        </div>
+        <div class="toc-tree-container">
+          <div class="toc-tree">
+            <ul>
+<li><a class="reference internal" href="#">Use an installed component package</a><ul>
+<li><a class="reference internal" href="#install-and-select-the-package">Install and select the package</a></li>
+<li><a class="reference internal" href="#insert-and-configure-a-component">Insert and configure a component</a></li>
+</ul>
+</li>
+</ul>
+
+          </div>
+        </div>
+      </div>
       
       
     </aside>
