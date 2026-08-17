@@ -1,0 +1,12 @@
+# Changes here will be overwritten by Copier
+_commit: 690e994
+_src_path: https://github.com/python-project-templates/base.git
+add_docs: true
+add_extension: js
+add_wiki: false
+email: dev@1kbgz.com
+github: 1kbgz
+project_description: AI-native visual development environment for spaday
+project_name: spaday-studio
+python_version_primary: '3.11'
+team: 1kbgz

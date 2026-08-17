@@ -1,0 +1,245 @@
+:root {
+  color: #152139;
+  background: #edf1f7;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-synthesis: none;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  min-width: 1080px;
+  min-height: 100vh;
+  margin: 0;
+  overflow: hidden;
+}
+
+button,
+input,
+textarea {
+  color: inherit;
+  font: inherit;
+}
+
+.studio-header {
+  display: flex;
+  height: 58px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 18px;
+  color: #f8fbff;
+  background: #10182b;
+  border-bottom: 1px solid #293653;
+}
+
+.studio-kicker {
+  margin-left: 12px;
+  color: #8292ae;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.studio-status {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 0.78rem;
+}
+
+.studio-status span,
+.studio-canvas-toolbar span {
+  padding: 5px 9px;
+  border: 1px solid #33415d;
+  border-radius: 999px;
+}
+
+.studio-preview-active {
+  color: #291900;
+  background: #fbbf24;
+  border-color: #fbbf24 !important;
+}
+
+.studio-shell {
+  display: grid;
+  height: calc(100vh - 58px);
+  grid-template-columns: 250px minmax(580px, 1fr) 310px;
+}
+
+.studio-panel {
+  padding: 20px 16px;
+  overflow: auto;
+  background: #f9fbfe;
+}
+
+.studio-panel h2 {
+  margin: 0 0 6px;
+  font-size: 0.88rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.studio-panel > p {
+  margin: 0 0 18px;
+  color: #69758a;
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.studio-tree-panel {
+  border-right: 1px solid #d7deea;
+}
+
+#component-tree ul {
+  margin: 0;
+  padding-left: 14px;
+  list-style: none;
+}
+
+#component-tree > ul {
+  padding-left: 0;
+}
+
+#component-tree button {
+  width: 100%;
+  margin: 1px 0;
+  padding: 6px 8px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: 0.74rem;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+#component-tree button:hover,
+#component-tree .studio-tree-selected {
+  color: #125cc5;
+  background: #e7f0ff;
+}
+
+.studio-canvas-frame {
+  min-width: 0;
+  padding: 14px;
+  background: #dfe5ef;
+}
+
+.studio-canvas-toolbar {
+  display: flex;
+  height: 38px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 10px;
+  color: #5f6c81;
+  font-size: 0.72rem;
+}
+
+.studio-canvas {
+  height: calc(100% - 38px);
+  overflow: auto;
+  background: white;
+  border-radius: 10px;
+  box-shadow: 0 12px 35px #1e2b4424;
+}
+
+.spaday-studio-selected {
+  outline: 3px solid #38bdf8 !important;
+  outline-offset: -3px;
+}
+
+.studio-inspector {
+  border-left: 1px solid #d7deea;
+}
+
+.studio-inspector form {
+  display: grid;
+  gap: 13px;
+}
+
+.studio-inspector form[hidden] {
+  display: none;
+}
+
+.studio-inspector label {
+  display: grid;
+  gap: 5px;
+  color: #526077;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.studio-inspector input,
+.studio-inspector textarea {
+  width: 100%;
+  padding: 9px 10px;
+  resize: vertical;
+  border: 1px solid #c8d1df;
+  border-radius: 8px;
+  background: white;
+  font-size: 0.8rem;
+  font-weight: 400;
+  line-height: 1.45;
+}
+
+.studio-inspector button {
+  padding: 8px 10px;
+  border: 1px solid #c6d0df;
+  border-radius: 8px;
+  background: white;
+  cursor: pointer;
+}
+
+.studio-inspector button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.studio-inspector .studio-primary {
+  color: white;
+  background: #1769d2;
+  border-color: #1769d2;
+  font-weight: 750;
+}
+
+.studio-button-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.studio-button-row button {
+  padding-inline: 5px;
+  font-size: 0.7rem;
+}
+
+.studio-agent-card {
+  display: grid;
+  gap: 7px;
+  margin-top: 24px;
+  padding: 13px;
+  color: #cad9ee;
+  background: #17233a;
+  border-radius: 10px;
+  font-size: 0.75rem;
+}
+
+.studio-agent-card code {
+  overflow: hidden;
+  color: #7dd3fc;
+  text-overflow: ellipsis;
+}
+
+#studio-message {
+  margin-top: 14px;
+  color: #2e6d48;
+}
+
+#studio-message.studio-error {
+  color: #b42318;
+}
