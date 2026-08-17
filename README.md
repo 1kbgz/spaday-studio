@@ -18,7 +18,8 @@ validated semantic edits; spaday applies the resulting tree diff without remount
 
 The pilot includes:
 
-- a selectable live application canvas and property inspector;
+- a selectable live application canvas with schema-driven property controls;
+- opt-in installed component catalogs and component insertion;
 - revision-checked insert, move, remove, and property operations;
 - transactional MCP preview, commit, discard, inspection, and undo tools;
 - atomic structured-project persistence and deterministic Python export;
@@ -41,13 +42,17 @@ Canonical edits are saved to `orbit.studio.json`. Use **Export Python** to downl
 The MCP endpoint is `http://127.0.0.1:8020/mcp`. Start with the
 [guided tutorial](docs/src/tutorial.md), connect an agent with the
 [MCP how-to guide](docs/src/how-to.md), [save and export a project](docs/src/save-and-export.md),
-consult the [API reference](docs/src/reference.md), or read
+[use an installed component package](docs/src/use-component-package.md), consult the
+[API reference](docs/src/reference.md), or read
 [why Studio uses a structured document](docs/src/explanation.md).
 
 ## Pilot boundaries
 
 - One preview is shared by all clients; per-client drafts and collaboration are not implemented.
-- The inspector edits text and inline style and demonstrates structural operations. Component-schema
-  discovery and generated prop editors are not implemented.
+- Component insertion targets the selected component's default slot. Named-slot authoring is not yet
+  exposed in the editor.
+- Property schemas cover JSON-compatible constructor properties. Binding and action editors are not yet
+  implemented.
+- Component packages are selected when the server starts; the browser cannot activate a package live.
 - Arbitrary handwritten Python is not losslessly round-tripped.
 - Python export is one-way generated output; the structured JSON project remains the editable source.

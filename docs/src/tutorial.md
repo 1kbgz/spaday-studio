@@ -36,13 +36,13 @@ Replace its text with:
 Ship the interface while it is running.
 ```
 
-Click **Apply edit**. The revision changes to `Revision 1`, and the live headline changes without the
+Click **Apply properties**. The revision changes to `Revision 1`, and the live headline changes without the
 canvas flashing or reloading.
 
 ## Make a structural edit
 
-Select `section · metrics` in the component tree and click **Add text child**. A new paragraph appears
-inside the metric grid, and the revision advances again.
+Select `main · app` at the top of the component tree. Choose `p · <p>` under the `html` catalog and click
+**Add component**. A new paragraph appears at the bottom of the canvas, and the revision advances again.
 
 Select the new paragraph and click **Move up** or **Remove**. Each accepted operation arrives as a new
 authoritative transports revision and is reconciled through spaday's keyed tree patch.
@@ -54,4 +54,5 @@ Click **Export Python** in the header. The downloaded `spaday_app.py` contains a
 stopping and restarting the same command restores the project.
 
 You now have a running structured-document editing loop. Continue with
+[use an installed component package](use-component-package.md) or
 [preview an edit through MCP](how-to.md) to drive the same canvas from an agent client.

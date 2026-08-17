@@ -17,7 +17,9 @@ def test_mcp_exposes_inspection_and_transactional_edit_tools():
         "commit_preview",
         "discard_preview",
         "export_python",
+        "get_component_schema",
         "inspect_component",
+        "list_components",
         "preview_operations",
         "undo",
     }
@@ -45,3 +47,20 @@ def test_mcp_exports_the_canonical_python_source():
     result = asyncio.run(exported())
     assert result["revision"] == 0
     assert "def page() -> Component:" in result["source"]
+
+
+def test_mcp_exposes_compact_component_lists_and_individual_schemas():
+    async def schemas() -> tuple[dict, dict]:
+        server = create_mcp(StudioSession(document.model_copy(deep=True)))
+        listed = await server.call_tool("list_components", {"package": "html"})
+        button = await server.call_tool("get_component_schema", {"tag": "button"})
+        assert isinstance(listed, CallToolResult)
+        assert isinstance(button, CallToolResult)
+        assert listed.structured_content is not None
+        assert button.structured_content is not None
+        return listed.structured_content, button.structured_content
+
+    listed, button = asyncio.run(schemas())
+    assert any(component["tag"] == "button" for component in listed["components"])
+    assert button["package"] == "html"
+    assert any(prop["name"] == "disabled" and prop["kind"] == "boolean" for prop in button["props"])

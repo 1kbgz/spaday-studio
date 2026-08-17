@@ -47,9 +47,9 @@ test.describe("Studio document compiler", () => {
 
     await page.locator('[data-spaday-studio-id="headline"]').click();
     await page
-      .locator("#prop-text")
+      .locator('[data-studio-prop="textContent"]')
       .fill("Ship the interface while it is running.");
-    await page.getByRole("button", { name: "Apply edit" }).click();
+    await page.getByRole("button", { name: "Apply properties" }).click();
 
     await expect(page.locator("#revision-status")).toHaveText(
       `Revision ${initialRevision + 1}`,
@@ -64,5 +64,31 @@ test.describe("Studio document compiler", () => {
     await expect(
       page.getByRole("link", { name: "Export Python" }),
     ).toHaveAttribute("download", "spaday_app.py");
+
+    await page.locator("#component-tree > ul > li > button").click();
+    await page.locator("#component-type").selectOption("p");
+    await page.getByRole("button", { name: "Add component" }).click();
+    await expect(page.locator("#revision-status")).toHaveText(
+      `Revision ${initialRevision + 2}`,
+    );
+    await expect(page.locator("#canvas p", { hasText: "New p" })).toBeVisible();
+    await expect(page.locator('[data-spaday-studio-id="app"]')).toHaveAttribute(
+      "data-identity-probe",
+      "preserved",
+    );
+
+    await page.locator("#component-tree > ul > li > button").click();
+    await page.locator("#component-type").selectOption("input");
+    await page.getByRole("button", { name: "Add component" }).click();
+    await expect(page.locator("#revision-status")).toHaveText(
+      `Revision ${initialRevision + 3}`,
+    );
+    await page.locator('[data-studio-prop="type"]').fill("checkbox");
+    await page.locator('[data-studio-prop="checked"]').selectOption("true");
+    await page.getByRole("button", { name: "Apply properties" }).click();
+    await expect(page.locator("#revision-status")).toHaveText(
+      `Revision ${initialRevision + 4}`,
+    );
+    await expect(page.locator("#canvas input")).toBeChecked();
   });
 });

@@ -63,6 +63,41 @@ preview.
 The `spaday-studio --project PATH` option loads `PATH` when present. Otherwise it creates `PATH` from the
 initial document. Without `--project`, the session remains in memory.
 
+## Component catalogs
+
+`ComponentCatalog` contains `available_packages`, `selected_packages`, and `components`.
+`available_packages` is read from `spaday.component_packages` entry-point metadata without importing the
+packages. `selected_packages` contains packages passed through `--package` or `create_app(packages=...)`.
+Only selected entry-point modules are imported and only their assets are mounted.
+
+Each `ComponentSchema` contains `package`, `tag`, `class_name`, optional `summary`, and ordered `props`.
+Studio inspects exported `Component` subclasses, maps Python constructor parameters to their emitted wire
+property names, and classifies annotations as:
+
+| Kind      | Python annotation                        | Editor control      |
+| --------- | ---------------------------------------- | ------------------- |
+| `string`  | `str`                                    | Text input or area. |
+| `boolean` | `bool`                                   | Tri-state selector. |
+| `number`  | `int` or `float`                         | Number input.       |
+| `enum`    | `Literal[...]`                           | Choice selector.    |
+| `json`    | `Any` or another structured/unknown type | JSON text area.     |
+
+Built-in HTML schemas are always present. Common properties are `id`, `class`, `style`, `title`, and
+`hidden`; leaf text elements also expose `textContent`.
+
+```{eval-rst}
+.. autoclass:: spaday_studio.ComponentCatalog
+   :members:
+
+.. autoclass:: spaday_studio.ComponentSchema
+   :members:
+
+.. autoclass:: spaday_studio.PropertySchema
+   :members:
+
+.. autofunction:: spaday_studio.discover_catalog
+```
+
 ## HTTP and WebSocket endpoints
 
 | Endpoint                 | Purpose                                                 |
@@ -71,6 +106,7 @@ initial document. Without `--project`, the session remains in memory.
 | `GET /tree.json`         | Current compiled spaday tree.                           |
 | `GET /api/project`       | Plain Studio state and transports model ID.             |
 | `GET /api/export/python` | Download Python for the canonical revision.             |
+| `GET /api/catalog`       | Selected schemas and installed package names.           |
 | `POST /api/operations`   | Commit a revision-checked operation batch.              |
 | `WS /ws`                 | Transports mirror carrying canonical and preview state. |
 | `/mcp`                   | MCP Streamable HTTP endpoint.                           |
@@ -80,7 +116,9 @@ initial document. Without `--project`, the session remains in memory.
 
 ## MCP surface
 
-The `spaday://project` resource returns current state. Tools are `inspect_component`, `export_python`,
-`preview_operations`, `commit_preview`, `discard_preview`, `apply_operations`, and `undo`.
+The `spaday://project` resource returns current state. `spaday://catalog` returns installed/selected
+package names and compact component summaries. Catalog tools are `list_components` and
+`get_component_schema`. Editing tools are `inspect_component`, `export_python`, `preview_operations`,
+`commit_preview`, `discard_preview`, `apply_operations`, and `undo`.
 
 The pilot supports one shared preview. Creating another preview replaces it.

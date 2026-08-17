@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>spaday Studio</title>
     <link rel="stylesheet" href="/components/studio/css/index.css" />
+    <!-- component-packages -->
   </head>
   <body>
     <header class="studio-header">
@@ -23,6 +24,14 @@
         <h2>Components</h2>
         <p>Select a component in this tree or directly on the canvas.</p>
         <div id="component-tree"></div>
+        <div class="studio-add-card">
+          <label>
+            Insert into selection
+            <select id="component-type"></select>
+          </label>
+          <button type="button" id="add-component">Add component</button>
+          <span id="catalog-note"></span>
+        </div>
       </aside>
       <section class="studio-canvas-frame">
         <div class="studio-canvas-toolbar">
@@ -36,11 +45,10 @@
         <p id="selection-empty">Select a component to edit its authored properties.</p>
         <form id="inspector-form" hidden>
           <label>Component <input id="component-label" readonly /></label>
-          <label>Text <textarea id="prop-text" rows="4"></textarea></label>
-          <label>Inline style <textarea id="prop-style" rows="8"></textarea></label>
-          <button type="submit" class="studio-primary">Apply edit</button>
+          <p id="component-summary"></p>
+          <div id="property-fields"></div>
+          <button type="submit" class="studio-primary">Apply properties</button>
           <div class="studio-button-row">
-            <button type="button" id="add-child">Add text child</button>
             <button type="button" id="move-up">Move up</button>
             <button type="button" id="remove-component">Remove</button>
           </div>
