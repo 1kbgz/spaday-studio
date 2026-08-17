@@ -11,6 +11,7 @@ from .models import (
     StudioNode,
     UnsetProp,
 )
+from .project import ProjectFile, export_python
 from .session import PreviewConflict, RevisionConflict, StudioSession, StudioState
 
 __version__ = "0.1.0"
@@ -25,6 +26,7 @@ __all__ = [
     "InsertNode",
     "MoveNode",
     "PreviewConflict",
+    "ProjectFile",
     "RemoveNode",
     "RevisionConflict",
     "SetProp",
@@ -33,5 +35,6 @@ __all__ = [
     "StudioSession",
     "StudioState",
     "UnsetProp",
+    "export_python",
     "package",
 ]

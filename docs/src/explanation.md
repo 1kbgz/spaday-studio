@@ -21,6 +21,11 @@ Starting with a document makes preview, validation, undo, collaboration, and det
 A later source adapter can support recognized constructor expressions or editor-owned source regions while
 leaving unrestricted Python components as opaque extension points.
 
+The persisted JSON document is therefore the editable source of truth. Python export is deliberately
+one-way: it produces normal, readable spaday authoring code for deployment or further manual work without
+pretending Studio can reconstruct the structured document after arbitrary Python edits. This keeps file
+saves lossless for Studio while making its output useful outside Studio.
+
 Transports connects the ownership layers. Python holds the authoritative state, browser canvases mirror its
 revisions, and MCP clients use the same session. Runtime datasets stay outside the document so a large table
 or fast chart feed does not become editor state or model context. Pyodide can eventually host the same

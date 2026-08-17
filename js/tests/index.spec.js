@@ -61,5 +61,8 @@ test.describe("Studio document compiler", () => {
       "data-identity-probe",
       "preserved",
     );
+    await expect(
+      page.getByRole("link", { name: "Export Python" }),
+    ).toHaveAttribute("download", "spaday_app.py");
   });
 });
