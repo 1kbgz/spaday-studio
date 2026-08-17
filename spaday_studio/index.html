@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>spaday Studio</title>
+    <link rel="stylesheet" href="/components/studio/css/index.css" />
+  </head>
+  <body>
+    <header class="studio-header">
+      <div>
+        <strong>spaday Studio</strong>
+        <span class="studio-kicker">live application pilot</span>
+      </div>
+      <div class="studio-status">
+        <span id="preview-status">Canonical</span>
+        <span id="revision-status">Connecting…</span>
+      </div>
+    </header>
+    <main class="studio-shell">
+      <aside class="studio-panel studio-tree-panel">
+        <h2>Components</h2>
+        <p>Select a component in this tree or directly on the canvas.</p>
+        <div id="component-tree"></div>
+      </aside>
+      <section class="studio-canvas-frame">
+        <div class="studio-canvas-toolbar">
+          <span>Desktop · 1280 px</span>
+          <span id="connection-status">Offline</span>
+        </div>
+        <div id="canvas" class="studio-canvas"></div>
+      </section>
+      <aside class="studio-panel studio-inspector">
+        <h2>Inspector</h2>
+        <p id="selection-empty">Select a component to edit its authored properties.</p>
+        <form id="inspector-form" hidden>
+          <label>Component <input id="component-label" readonly /></label>
+          <label>Text <textarea id="prop-text" rows="4"></textarea></label>
+          <label>Inline style <textarea id="prop-style" rows="8"></textarea></label>
+          <button type="submit" class="studio-primary">Apply edit</button>
+          <div class="studio-button-row">
+            <button type="button" id="add-child">Add text child</button>
+            <button type="button" id="move-up">Move up</button>
+            <button type="button" id="remove-component">Remove</button>
+          </div>
+        </form>
+        <div class="studio-agent-card">
+          <strong>Agent endpoint</strong>
+          <code>/mcp</code>
+          <span>Use MCP preview tools to stage a live draft before committing.</span>
+        </div>
+        <p id="studio-message" role="status"></p>
+      </aside>
+    </main>
+    <script type="module">
+      import { connectStudio } from "/components/studio/cdn/index.js";
+      import * as runtime from "/js/cdn/index.js";
+      import * as transport from "/js/transports/cdn/index.js";
+
+      await runtime.init({ module_or_path: "/js/pkg/spaday_bg.wasm" });
+      await transport.wasm.default({ module_or_path: "/js/transports/pkg/transports_bg.wasm" });
+      connectStudio({ runtime, transport });
+    </script>
+  </body>
+</html>
