@@ -257,6 +257,11 @@ properties in the editor.</p>
 </div>
 <p>Repeat <code class="docutils literal notranslate"><span class="pre">--package</span></code> to select more than one package. Studio lists other installed package names, but it
 imports schemas and injects browser assets only for selected packages.</p>
+<p>Select every installed component package with a quoted wildcard:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>spaday-studio<span class="w"> </span>--project<span class="w"> </span>orbit.studio.json<span class="w"> </span>--package<span class="w"> </span><span class="s1">'*'</span>
+</pre></div>
+</div>
+<p>The quotes prevent your shell from expanding <code class="docutils literal notranslate"><span class="pre">*</span></code> into filenames before Studio receives it.</p>
 </section>
 <section id="insert-and-configure-a-component">
 <h2>Insert and configure a component<a class="headerlink" href="#insert-and-configure-a-component" title="Link to this heading">¶</a></h2>
