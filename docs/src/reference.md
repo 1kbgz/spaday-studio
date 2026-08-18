@@ -68,6 +68,7 @@ initial document. Without `--project`, the session remains in memory.
 `ComponentCatalog` contains `available_packages`, `selected_packages`, and `components`.
 `available_packages` is read from `spaday.component_packages` entry-point metadata without importing the
 packages. `selected_packages` contains packages passed through `--package` or `create_app(packages=...)`.
+The package reference `"*"` selects every available package; quote it when passing it through a shell.
 Only selected entry-point modules are imported and only their assets are mounted.
 
 Each `ComponentSchema` contains `package`, `tag`, `class_name`, optional `summary`, and ordered `props`.

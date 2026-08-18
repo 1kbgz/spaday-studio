@@ -1,9 +1,11 @@
 import sys
 import types
 
+import spaday.packages
 from spaday import Component, ComponentPackage
 from starlette.testclient import TestClient
 
+from spaday_studio import catalog
 from spaday_studio.models import find_node
 from spaday_studio.project import ProjectFile
 from spaday_studio.server import create_app
@@ -90,3 +92,37 @@ def test_server_loads_catalogs_and_assets_only_for_selected_packages(tmp_path, m
     }
     assert asset.status_code == 200
     assert '<script type="module" src="/components/demo/index.js"></script>' in homepage.text
+
+
+def test_server_wildcard_selects_all_available_packages(tmp_path, monkeypatch):
+    assets = tmp_path / "extension"
+    assets.mkdir()
+    (assets / "index.js").write_text("customElements.define('demo-button', class extends HTMLElement {})")
+    module = types.ModuleType("demo_studio_package")
+    module.__dict__.update(
+        __all__=["DemoButton", "package"],
+        DemoButton=DemoButton,
+        package=ComponentPackage(name="demo", assets_dir=assets, assets=(("js", "index.js"),)),
+    )
+    monkeypatch.setitem(sys.modules, "demo_studio_package", module)
+
+    class EntryPoint:
+        name = "demo"
+        module = "demo_studio_package"
+
+        @staticmethod
+        def load():
+            return module.package
+
+    monkeypatch.setattr(catalog.metadata, "entry_points", lambda **_kwargs: [EntryPoint()])
+    monkeypatch.setattr(spaday.packages, "entry_points", lambda **_kwargs: [EntryPoint()])
+
+    app = create_app(packages=["*"])
+    with TestClient(app) as client:
+        discovered = client.get("/api/catalog").json()
+        asset = client.get("/components/demo/index.js")
+
+    assert discovered["available_packages"] == ["demo"]
+    assert discovered["selected_packages"] == ["demo"]
+    assert any(component["tag"] == "demo-button" for component in discovered["components"])
+    assert asset.status_code == 200
