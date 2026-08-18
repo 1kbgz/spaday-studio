@@ -106,14 +106,9 @@ textarea {
   border-right: 1px solid #d7deea;
 }
 
-#component-tree ul {
+#component-tree .studio-tree-list {
   margin: 0;
-  padding-left: 14px;
-  list-style: none;
-}
-
-#component-tree > ul {
-  padding-left: 0;
+  padding: 0;
 }
 
 #component-tree button {

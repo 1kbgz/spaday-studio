@@ -57,11 +57,17 @@ interface WireNode {
   tag: string;
   key?: string;
   props?: Record<string, unknown>;
+  bindings?: Record<string, unknown>;
   slots?: Record<string, WireNode[]>;
 }
 
+interface RuntimeStore {
+  set(field: string, value: unknown): void;
+}
+
 interface RuntimeModule {
-  mount(container: Element, tree: WireNode): Element;
+  Store: new (initial?: Record<string, unknown>) => RuntimeStore;
+  mount(container: Element, tree: WireNode, store?: RuntimeStore): Element;
   diff(oldTree: string, newTree: string): string;
   applyPatch(root: Element, patch: unknown): Element;
 }
@@ -81,6 +87,13 @@ interface TransportModule {
 interface ConnectOptions {
   runtime: RuntimeModule;
   transport: TransportModule;
+}
+
+interface TreeItem {
+  id: string;
+  label: string;
+  className: string;
+  style: string;
 }
 
 export function compileNode(
@@ -132,6 +145,26 @@ function findLocation(
   return undefined;
 }
 
+function flattenTree(
+  node: StudioNode,
+  selectedId: string | undefined,
+  depth = 0,
+  items: TreeItem[] = [],
+): TreeItem[] {
+  items.push({
+    id: node.id,
+    label: `${node.tag}  ${node.id}`,
+    className: selectedId === node.id ? "studio-tree-selected" : "",
+    style: `padding-left: ${8 + depth * 14}px`,
+  });
+  for (const children of Object.values(node.slots)) {
+    for (const child of children) {
+      flattenTree(child, selectedId, depth + 1, items);
+    }
+  }
+  return items;
+}
+
 function requiredElement<T extends Element>(selector: string): T {
   const element = document.querySelector<T>(selector);
   if (!element) throw new Error(`Studio element ${selector} is missing`);
@@ -164,6 +197,46 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
   let root: Element | undefined;
   let selectedId: string | undefined;
   let pendingSelection: string | undefined;
+
+  const treeStore = new runtime.Store({ treeItems: [] });
+  const itemBinding = (path: keyof TreeItem) => ({
+    compute: { expr: "item", path },
+    mode: "one-way",
+  });
+  const treeRoot = runtime.mount(
+    tree,
+    {
+      tag: "div",
+      props: { className: transport.toValue("studio-tree-list") },
+      slots: {
+        default: [
+          {
+            tag: "spa-each",
+            props: {
+              itemKey: transport.toValue("id"),
+              style: transport.toValue("display:contents"),
+            },
+            bindings: { items: { field: "treeItems", mode: "one-way" } },
+            slots: {
+              default: [
+                {
+                  tag: "button",
+                  props: { type: transport.toValue("button") },
+                  bindings: {
+                    textContent: itemBinding("label"),
+                    className: itemBinding("className"),
+                    style: itemBinding("style"),
+                    "data-studio-tree-id": itemBinding("id"),
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+    treeStore,
+  );
 
   const activeDocument = (): StudioDocument | undefined =>
     state?.preview ?? state?.document;
@@ -367,23 +440,6 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
       : `${catalog.components.length} components available.`;
   };
 
-  const treeBranch = (node: StudioNode): HTMLLIElement => {
-    const item = document.createElement("li");
-    const button = document.createElement("button");
-    button.type = "button";
-    button.textContent = `${node.tag}  ${node.id}`;
-    button.classList.toggle("studio-tree-selected", selectedId === node.id);
-    button.addEventListener("click", () => select(node.id));
-    item.append(button);
-    const children = Object.values(node.slots).flat();
-    if (children.length) {
-      const list = document.createElement("ul");
-      children.forEach((child) => list.append(treeBranch(child)));
-      item.append(list);
-    }
-    return item;
-  };
-
   const select = (id: string) => {
     const active = activeDocument();
     if (!active) return;
@@ -413,11 +469,17 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
   const renderTree = () => {
     const active = activeDocument();
     if (!active) return;
-    tree.replaceChildren();
-    const list = document.createElement("ul");
-    list.append(treeBranch(active.root));
-    tree.append(list);
+    treeStore.set("treeItems", flattenTree(active.root, selectedId));
   };
+
+  tree.addEventListener("click", (event) => {
+    const target =
+      event.target instanceof Element
+        ? event.target.closest<HTMLElement>("[data-studio-tree-id]")
+        : null;
+    const id = target?.dataset.studioTreeId;
+    if (id) select(id);
+  });
 
   const render = () => {
     const active = activeDocument();
@@ -435,7 +497,6 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
     preview.textContent = state.preview ? "Preview draft" : "Canonical";
     preview.classList.toggle("studio-preview-active", Boolean(state.preview));
     connection.textContent = "Live";
-    renderTree();
     if (pendingSelection && findNode(active.root, pendingSelection)) {
       selectedId = pendingSelection;
       pendingSelection = undefined;
@@ -572,6 +633,7 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
     stop() {
       link.stop();
       root?.remove();
+      treeRoot.remove();
     },
   };
 }
