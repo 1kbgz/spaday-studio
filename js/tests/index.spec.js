@@ -65,7 +65,11 @@ test.describe("Studio document compiler", () => {
       page.getByRole("link", { name: "Export Python" }),
     ).toHaveAttribute("download", "spaday_app.py");
 
-    await page.locator("#component-tree > ul > li > button").click();
+    const rootTreeButton = page.locator('[data-studio-tree-id="app"]');
+    await rootTreeButton.evaluate((element) => {
+      element.dataset.identityProbe = "preserved";
+    });
+    await rootTreeButton.click();
     await page.locator("#component-type").selectOption("p");
     await page.getByRole("button", { name: "Add component" }).click();
     await expect(page.locator("#revision-status")).toHaveText(
@@ -76,8 +80,12 @@ test.describe("Studio document compiler", () => {
       "data-identity-probe",
       "preserved",
     );
+    await expect(rootTreeButton).toHaveAttribute(
+      "data-identity-probe",
+      "preserved",
+    );
 
-    await page.locator("#component-tree > ul > li > button").click();
+    await rootTreeButton.click();
     await page.locator("#component-type").selectOption("input");
     await page.getByRole("button", { name: "Add component" }).click();
     await expect(page.locator("#revision-status")).toHaveText(
