@@ -25,6 +25,14 @@ from .session import PreviewConflict, RevisionConflict, StudioSession
 HERE = Path(__file__).parent
 
 
+def _expand_package_references(packages: Sequence[str]) -> tuple[str, ...]:
+    references = tuple(packages)
+    if "*" not in references:
+        return references
+    explicit = tuple(reference for reference in references if reference != "*")
+    return (*explicit, *(name for name in discover_catalog().available_packages if name not in explicit))
+
+
 def create_app(
     document: StudioDocument | None = None,
     *,
@@ -44,8 +52,9 @@ def create_app(
         else:
             project_file.save(initial_document)
     studio = StudioSession(initial_document, save_document=project_file.save if project_file is not None else None)
-    selected_packages = resolve_component_packages(packages)
-    component_catalog = discover_catalog(list(packages))
+    package_references = _expand_package_references(packages)
+    selected_packages = resolve_component_packages(package_references)
+    component_catalog = discover_catalog(list(package_references))
     package_tags = []
     for selected_package in selected_packages:
         prefix = package_url_prefix(selected_package)
@@ -124,7 +133,12 @@ def main() -> None:
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", default=8020, type=int)
     parser.add_argument("--project", type=Path, help="load or create a durable Studio JSON project")
-    parser.add_argument("--package", action="append", default=[], help="select an installed spaday component package (repeatable)")
+    parser.add_argument(
+        "--package",
+        action="append",
+        default=[],
+        help="select an installed spaday component package (repeatable; quote '*' to select all)",
+    )
     args = parser.parse_args()
 
     import uvicorn
