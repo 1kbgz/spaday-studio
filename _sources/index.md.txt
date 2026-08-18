@@ -32,9 +32,6 @@ AI-native visual development environment for spaday
 
 ## Overview
 
-> [!NOTE]
-> This library was generated using [copier](https://copier.readthedocs.io/en/stable/) from the [Base Python Project Template repository](https://github.com/python-project-templates/base).
-
 spaday-studio is a pilot AI-native visual development environment built on spaday's real component
 runtime. A structured project document is mirrored through transports; browser and MCP clients submit
 validated semantic edits; spaday applies the resulting tree diff without remounting unaffected elements.
@@ -79,3 +76,6 @@ The MCP endpoint is `http://127.0.0.1:8020/mcp`. Start with the
 - Component packages are selected when the server starts; the browser cannot activate a package live.
 - Arbitrary handwritten Python is not losslessly round-tripped.
 - Python export is one-way generated output; the structured JSON project remains the editable source.
+
+> [!NOTE]
+> This library was generated using [copier](https://copier.readthedocs.io/en/stable/) from the [Base Python Project Template repository](https://github.com/python-project-templates/base).
