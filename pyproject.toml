@@ -32,7 +32,7 @@ classifiers = [
 dependencies = [
     "mcp>=2,<3",
     "pydantic>=2",
-    "spaday>=0.7,<0.8",
+    "spaday>=0.7,<1.0",
     "starlette",
     "transports>=0.8,<0.9",
 ]
