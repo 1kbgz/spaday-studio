@@ -2,13 +2,14 @@ import sys
 import types
 
 import spaday.packages
+import transports
 from spaday import Component, ComponentPackage
 from starlette.testclient import TestClient
 
 from spaday_studio import catalog
 from spaday_studio.models import find_node
 from spaday_studio.project import ProjectFile
-from spaday_studio.server import create_app
+from spaday_studio.server import _prune_buffer_revisions, create_app
 
 
 class DemoButton(Component):
@@ -16,6 +17,28 @@ class DemoButton(Component):
 
     def __init__(self, *children, key: str | None = None, disabled: bool | None = None, **props) -> None:
         super().__init__(*children, key=key, props={"disabled": disabled}, **props)
+
+
+def test_buffer_cleanup_keeps_current_and_active_draft_revisions():
+    hub = transports.Hub(key=lambda connection: connection)
+    model_id = hub.share(
+        {},
+        crdt_spec=transports.CrdtSpec({"kind": "map", "values": {"kind": "sequence", "materialization": "string"}}),
+    )
+    hub.mutate_shared_crdt(
+        model_id,
+        [
+            {"kind": "map_set", "path": [], "key": "0:root:bindings", "value": "{}"},
+            {"kind": "map_set", "path": [], "key": "1:root:events", "value": "{}"},
+            {"kind": "map_set", "path": [], "key": "2:state", "value": "{}"},
+        ],
+    )
+
+    removed = _prune_buffer_revisions(hub, model_id, current_revision=2, active_revisions={1})
+    buffers = transports.from_value(hub.snapshot_shared(model_id)["value"], dict)
+
+    assert removed == ["0:root:bindings"]
+    assert set(buffers) == {"1:root:events", "2:state"}
 
 
 def test_server_hosts_canvas_tree_api_and_mcp():

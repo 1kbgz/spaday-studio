@@ -34,6 +34,30 @@ def _expand_package_references(packages: Sequence[str]) -> tuple[str, ...]:
     return (*explicit, *(name for name in discover_catalog().available_packages if name not in explicit))
 
 
+def _prune_buffer_revisions(
+    hub: transports.Hub,
+    model_id: int,
+    *,
+    current_revision: int,
+    active_revisions: set[int],
+) -> list[str]:
+    buffers = transports.from_value(hub.snapshot_shared(model_id)["value"], dict)
+    removed = []
+    for key in buffers:
+        revision, separator, _surface = key.partition(":")
+        if not separator or not revision.isdigit():
+            continue
+        number = int(revision)
+        if number < current_revision and number not in active_revisions:
+            removed.append(key)
+    if removed:
+        hub.mutate_shared_crdt(
+            model_id,
+            [{"kind": "map_remove", "path": [], "key": key} for key in sorted(removed)],
+        )
+    return sorted(removed)
+
+
 def create_app(
     document: StudioDocument | None = None,
     *,
@@ -110,6 +134,7 @@ def create_app(
         except (KeyError, IndexError, TypeError, ValueError, ValidationError) as error:
             status = 409 if isinstance(error, (RevisionConflict, PreviewConflict)) else 422
             return JSONResponse({"error": str(error)}, status_code=status)
+        cleanup_buffers()
         return JSONResponse(result)
 
     async def preview_operations(request):
@@ -122,6 +147,7 @@ def create_app(
         except (KeyError, IndexError, TypeError, ValueError, ValidationError) as error:
             status = 409 if isinstance(error, (RevisionConflict, PreviewConflict)) else 422
             return JSONResponse({"error": str(error)}, status_code=status)
+        cleanup_buffers()
         return JSONResponse(result)
 
     async def commit_preview(request):
@@ -130,6 +156,7 @@ def create_app(
         except (KeyError, IndexError, TypeError, ValueError, ValidationError) as error:
             status = 409 if isinstance(error, (RevisionConflict, PreviewConflict)) else 422
             return JSONResponse({"error": str(error)}, status_code=status)
+        cleanup_buffers()
         return JSONResponse(result)
 
     async def discard_preview(request):
@@ -138,7 +165,16 @@ def create_app(
         except (KeyError, IndexError, TypeError, ValueError, ValidationError) as error:
             status = 409 if isinstance(error, (RevisionConflict, PreviewConflict)) else 422
             return JSONResponse({"error": str(error)}, status_code=status)
+        cleanup_buffers()
         return JSONResponse(result)
+
+    def cleanup_buffers() -> None:
+        _prune_buffer_revisions(
+            buffer_hub,
+            buffer_id,
+            current_revision=studio.state.revision,
+            active_revisions=studio.draft_base_revisions,
+        )
 
     async def buffers(websocket):
         actor_id = websocket.path_params["actor_id"]

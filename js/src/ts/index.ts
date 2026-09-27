@@ -221,6 +221,12 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
   const remove = requiredElement<HTMLButtonElement>("#remove-component");
   const commitDraft = requiredElement<HTMLButtonElement>("#commit-draft");
   const discardDraft = requiredElement<HTMLButtonElement>("#discard-draft");
+  const bindingControls = requiredElement<HTMLElement>("#binding-controls");
+  const eventControls = requiredElement<HTMLElement>("#event-controls");
+  const addBinding = requiredElement<HTMLButtonElement>("#add-binding");
+  const addEvent = requiredElement<HTMLButtonElement>("#add-event");
+  const bindingJsonHelp = requiredElement<HTMLElement>("#binding-json-help");
+  const eventJsonHelp = requiredElement<HTMLElement>("#event-json-help");
   const bindingsEditor = requiredElement<JsonEditor>("#bindings-editor");
   const eventsEditor = requiredElement<JsonEditor>("#events-editor");
   const stateEditor = requiredElement<JsonEditor>("#state-editor");
@@ -246,8 +252,10 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
   const actorColor = `hsl(${[...actorId].reduce((sum, character) => sum + character.charCodeAt(0), 0) % 360} 65% 45%)`;
   const bufferKeys = new Map<JsonEditor, string>();
   const bufferInitial = new Map<JsonEditor, string>();
+  const initializedBufferKeys = new Set<string>();
   let bufferModelId: number | undefined;
   let bufferValues: Record<string, string> = {};
+  let renderBehaviorControls = (_node: StudioNode) => {};
 
   const bufferKey = (surface: string, nodeId?: string) =>
     `${draft?.base_revision ?? state?.revision ?? 0}:${nodeId ? `${nodeId}:` : ""}${surface}`;
@@ -257,11 +265,13 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
     const initial = bufferInitial.get(editor);
     if (!key || initial === undefined || bufferModelId === undefined) return;
     if (!(key in bufferValues)) {
+      if (initializedBufferKeys.has(key)) return;
+      initializedBufferKeys.add(key);
       bufferValues[key] = initial;
       bufferClient.proposeCrdt(bufferModelId, [
         { kind: "map_set", path: [], key, value: initial },
       ]);
-    }
+    } else initializedBufferKeys.add(key);
     editor.doc = bufferValues[key];
   };
 
@@ -338,13 +348,17 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
     }
   };
 
-  const handleBufferEdit = (editor: JsonEditor, event: Event) => {
+  const writeBuffer = (
+    editor: JsonEditor,
+    next: string,
+    updateEditor = false,
+  ) => {
     const key = bufferKeys.get(editor);
     if (!key || bufferModelId === undefined) return;
-    const next = (event as CustomEvent<{ doc: string }>).detail.doc;
     const current = bufferValues[key] ?? bufferInitial.get(editor) ?? "";
     const splice = spliceText(current, next);
     bufferValues[key] = next;
+    if (updateEditor) editor.doc = next;
     if (splice.delete_count || splice.values.length)
       bufferClient.proposeCrdt(bufferModelId, [
         {
@@ -354,6 +368,10 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
         },
       ]);
     publishCursor(editor);
+  };
+
+  const handleBufferEdit = (editor: JsonEditor, event: Event) => {
+    writeBuffer(editor, (event as CustomEvent<{ doc: string }>).detail.doc);
   };
 
   for (const editor of [bindingsEditor, eventsEditor, stateEditor]) {
@@ -371,6 +389,10 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
       string
     >;
     for (const editor of bufferKeys.keys()) ensureBuffer(editor);
+    const active = draft?.document ?? state?.document;
+    const selected =
+      active && selectedId ? findNode(active.root, selectedId) : undefined;
+    if (selected) renderBehaviorControls(selected);
     renderRemoteCursors();
   });
   bufferClient.onAwareness(() => renderRemoteCursors());
@@ -625,6 +647,7 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
       bufferKey("events", node.id),
       JSON.stringify(node.events, null, 2),
     );
+    renderBehaviorControls(node);
     eventHelp.textContent = component?.events.length
       ? `Declared events: ${component.events.join(", ")}. Each value must be a Spaday action.`
       : "Map DOM event names to Spaday actions.";
@@ -659,6 +682,317 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
     }
     return operations;
   };
+
+  const behaviorField = (
+    text: string,
+    control: HTMLInputElement | HTMLSelectElement,
+  ) => {
+    const label = document.createElement("label");
+    const caption = document.createElement("span");
+    caption.textContent = text;
+    label.append(caption, control);
+    return label;
+  };
+
+  const behaviorInput = (value: string, placeholder: string) => {
+    const input = document.createElement("input");
+    input.type = "text";
+    input.value = value;
+    input.placeholder = placeholder;
+    return input;
+  };
+
+  const objectValue = (
+    value: JsonValue | undefined,
+  ): Record<string, JsonValue> | undefined =>
+    value && !Array.isArray(value) && typeof value === "object"
+      ? value
+      : undefined;
+
+  const commonBinding = (binding: Record<string, JsonValue>) => {
+    const keys = Object.keys(binding);
+    return (
+      keys.every((key) => ["field", "mode", "event"].includes(key)) &&
+      typeof binding.field === "string" &&
+      ["one-way", "two-way"].includes(String(binding.mode)) &&
+      (binding.event === undefined || typeof binding.event === "string")
+    );
+  };
+
+  type CommonActionKind =
+    | "toggle-field"
+    | "set-field-event"
+    | "set-field-literal";
+
+  const commonActionKind = (
+    action: Record<string, JsonValue>,
+  ): CommonActionKind | undefined => {
+    if (
+      action.kind === "toggle-field" &&
+      typeof action.field === "string" &&
+      Object.keys(action).every((key) => ["kind", "field"].includes(key))
+    )
+      return "toggle-field";
+    if (
+      action.kind !== "set-field" ||
+      typeof action.field !== "string" ||
+      !Object.keys(action).every((key) =>
+        ["kind", "field", "value"].includes(key),
+      )
+    )
+      return undefined;
+    const value = objectValue(action.value);
+    if (!value) return undefined;
+    if (
+      value.expr === "event" &&
+      Object.keys(value).every((key) => ["expr", "path"].includes(key)) &&
+      (value.path === undefined || typeof value.path === "string")
+    )
+      return "set-field-event";
+    if (
+      value.expr === "lit" &&
+      Object.keys(value).every((key) => ["expr", "value"].includes(key)) &&
+      Object.prototype.hasOwnProperty.call(value, "value")
+    )
+      return "set-field-literal";
+    return undefined;
+  };
+
+  const updateBehaviorMap = (
+    editor: JsonEditor,
+    value: Record<string, Record<string, JsonValue>>,
+  ) => writeBuffer(editor, JSON.stringify(value, null, 2), true);
+
+  const renderBindingRow = (
+    name = "",
+    binding: Record<string, JsonValue> = {
+      field: "",
+      mode: "one-way",
+    },
+  ) => {
+    const row = document.createElement("div");
+    row.className = "studio-behavior-row studio-binding-row";
+    const property = behaviorInput(name, "property");
+    property.dataset.studioBindingName = "";
+    const field = behaviorInput(String(binding.field ?? ""), "Store field");
+    field.dataset.studioBindingField = "";
+    const mode = document.createElement("select");
+    mode.dataset.studioBindingMode = "";
+    mode.append(
+      new Option("One-way", "one-way"),
+      new Option("Two-way", "two-way"),
+    );
+    mode.value = String(binding.mode ?? "one-way");
+    const event = behaviorInput(String(binding.event ?? ""), "default");
+    event.dataset.studioBindingEvent = "";
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.textContent = "Remove";
+    let storedName = name;
+    const persist = () => {
+      try {
+        const nextName = property.value.trim();
+        if (!nextName || !field.value.trim()) return;
+        const next = jsonObject(bindingsEditor.doc, "Bindings");
+        if (storedName && storedName !== nextName) delete next[storedName];
+        next[nextName] = {
+          field: field.value.trim(),
+          mode: mode.value,
+          ...(event.value.trim() ? { event: event.value.trim() } : {}),
+        };
+        storedName = nextName;
+        updateBehaviorMap(bindingsEditor, next);
+      } catch (error) {
+        showMessage(
+          error instanceof Error ? error.message : "Invalid binding",
+          true,
+        );
+      }
+    };
+    for (const control of [property, field, mode, event])
+      control.addEventListener("change", persist);
+    remove.addEventListener("click", () => {
+      if (!storedName) {
+        row.remove();
+        return;
+      }
+      try {
+        const next = jsonObject(bindingsEditor.doc, "Bindings");
+        delete next[storedName];
+        updateBehaviorMap(bindingsEditor, next);
+      } catch (error) {
+        showMessage(
+          error instanceof Error ? error.message : "Invalid binding",
+          true,
+        );
+      }
+    });
+    row.append(
+      behaviorField("Property", property),
+      behaviorField("Store field", field),
+      behaviorField("Direction", mode),
+      behaviorField("Change event", event),
+      remove,
+    );
+    return row;
+  };
+
+  const renderEventRow = (
+    name = "",
+    action: Record<string, JsonValue> = {
+      kind: "toggle-field",
+      field: "",
+    },
+  ) => {
+    const row = document.createElement("div");
+    row.className = "studio-behavior-row studio-event-row";
+    const eventName = behaviorInput(name, "event");
+    eventName.dataset.studioEventName = "";
+    const kind = document.createElement("select");
+    kind.dataset.studioActionKind = "";
+    kind.append(
+      new Option("Toggle Store field", "toggle-field"),
+      new Option("Set field from event", "set-field-event"),
+      new Option("Set field to value", "set-field-literal"),
+    );
+    kind.value = commonActionKind(action) ?? "toggle-field";
+    const field = behaviorInput(String(action.field ?? ""), "Store field");
+    field.dataset.studioActionField = "";
+    const detail = behaviorInput("", "");
+    detail.dataset.studioActionValue = "";
+    const value = objectValue(action.value);
+    if (kind.value === "set-field-event")
+      detail.value = String(value?.path ?? "");
+    if (kind.value === "set-field-literal")
+      detail.value = JSON.stringify(value?.value ?? null);
+    const detailField = behaviorField("Event path", detail);
+    const configureDetail = () => {
+      detailField.hidden = kind.value === "toggle-field";
+      detailField.querySelector("span")!.textContent =
+        kind.value === "set-field-literal" ? "JSON value" : "Event path";
+      detail.placeholder =
+        kind.value === "set-field-literal" ? '"value"' : "optional path";
+      if (kind.value === "set-field-literal" && !detail.value)
+        detail.value = "null";
+    };
+    configureDetail();
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.textContent = "Remove";
+    let storedName = name;
+    const persist = () => {
+      try {
+        const nextName = eventName.value.trim();
+        if (!nextName || !field.value.trim()) return;
+        const next = jsonObject(eventsEditor.doc, "Events");
+        if (storedName && storedName !== nextName) delete next[storedName];
+        const actionKind = kind.value as CommonActionKind;
+        next[nextName] =
+          actionKind === "toggle-field"
+            ? { kind: "toggle-field", field: field.value.trim() }
+            : {
+                kind: "set-field",
+                field: field.value.trim(),
+                value:
+                  actionKind === "set-field-event"
+                    ? {
+                        expr: "event",
+                        ...(detail.value.trim()
+                          ? { path: detail.value.trim() }
+                          : {}),
+                      }
+                    : {
+                        expr: "lit",
+                        value: JSON.parse(detail.value) as JsonValue,
+                      },
+              };
+        storedName = nextName;
+        updateBehaviorMap(eventsEditor, next);
+      } catch (error) {
+        showMessage(
+          error instanceof Error ? error.message : "Invalid action",
+          true,
+        );
+      }
+    };
+    for (const control of [eventName, field, detail])
+      control.addEventListener("change", persist);
+    kind.addEventListener("change", () => {
+      configureDetail();
+      persist();
+    });
+    remove.addEventListener("click", () => {
+      if (!storedName) {
+        row.remove();
+        return;
+      }
+      try {
+        const next = jsonObject(eventsEditor.doc, "Events");
+        delete next[storedName];
+        updateBehaviorMap(eventsEditor, next);
+      } catch (error) {
+        showMessage(
+          error instanceof Error ? error.message : "Invalid action",
+          true,
+        );
+      }
+    });
+    row.append(
+      behaviorField("Event", eventName),
+      behaviorField("Action", kind),
+      behaviorField("Store field", field),
+      detailField,
+      remove,
+    );
+    return row;
+  };
+
+  renderBehaviorControls = (node: StudioNode) => {
+    let bindings = node.bindings;
+    let events = node.events;
+    try {
+      bindings = jsonObject(bindingsEditor.doc, "Bindings");
+    } catch {}
+    try {
+      events = jsonObject(eventsEditor.doc, "Events");
+    } catch {}
+    const simpleBindings = Object.entries(bindings).filter(([, binding]) =>
+      commonBinding(binding),
+    );
+    const simpleEvents = Object.entries(events).filter(([, action]) =>
+      Boolean(commonActionKind(action)),
+    );
+    bindingControls.replaceChildren(
+      ...simpleBindings.map(([name, binding]) =>
+        renderBindingRow(name, binding),
+      ),
+    );
+    eventControls.replaceChildren(
+      ...simpleEvents.map(([name, action]) => renderEventRow(name, action)),
+    );
+    const complexBindings =
+      Object.keys(bindings).length - simpleBindings.length;
+    const complexEvents = Object.keys(events).length - simpleEvents.length;
+    bindingJsonHelp.textContent = complexBindings
+      ? `${complexBindings} advanced binding ${complexBindings === 1 ? "is" : "are"} available only in this complete validated map.`
+      : "Edit the complete validated binding map.";
+    eventJsonHelp.textContent = complexEvents
+      ? `${complexEvents} advanced action ${complexEvents === 1 ? "is" : "are"} available only in this complete validated map.`
+      : "Edit the complete validated action map.";
+  };
+
+  addBinding.addEventListener("click", () => {
+    bindingControls.append(renderBindingRow());
+    bindingControls
+      .querySelector<HTMLInputElement>(".studio-binding-row:last-child input")
+      ?.focus();
+  });
+  addEvent.addEventListener("click", () => {
+    eventControls.append(renderEventRow());
+    eventControls
+      .querySelector<HTMLInputElement>(".studio-event-row:last-child input")
+      ?.focus();
+  });
 
   const readControl = (control: PropertyControl): JsonValue | undefined => {
     const kind = control.dataset.kind as PropertyKind;

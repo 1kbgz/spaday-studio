@@ -31,12 +31,13 @@ revisions, and MCP clients use the same draft service and semantic operations. E
 of the canonical transports mirror. A commit rebases changes to distinct fields and rejects overlapping
 leaf or structural changes with a concrete conflict.
 
-CodeMirror handles bounded text buffers for bindings, event actions, and initial runtime state. The buffers
-use a dynamic transports map whose values are character-level sequence CRDTs. Their keys include the base
-revision and editing surface, so collaborators on the same revision converge without turning generated
-Python or the complete project tree into a text document. Cursor awareness is ephemeral. Parsed, core-
-validated values enter `StudioDocument` only through semantic operations; invalid intermediate text remains
-in the CRDT buffer.
+Direct controls cover common field bindings and Store-writing actions. CodeMirror handles the complete wire
+maps and initial runtime state in bounded text buffers. The buffers use a dynamic transports map whose values
+are character-level sequence CRDTs. Their keys include the base revision and editing surface, so collaborators
+on the same revision converge without turning generated Python or the complete project tree into a text
+document. Cursor awareness is ephemeral. Parsed, core-validated values enter `StudioDocument` only through
+semantic operations; invalid intermediate text remains in the CRDT buffer. The host removes retired revision
+buffers once no private draft still references them.
 
 The canvas owns one persistent Spaday `Store` seeded from the document's initial state. Tree patches retain
 that Store, so bindings and actions work in the preview instead of serving as inert serialized examples.

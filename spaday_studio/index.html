@@ -55,13 +55,25 @@
           <div id="property-fields"></div>
           <details>
             <summary>Bindings</summary>
-            <p class="studio-editor-help">Map property names to Spaday binding objects.</p>
-            <spaday-codemirror id="bindings-editor" language="json" line_numbers="false"></spaday-codemirror>
+            <p class="studio-editor-help">Bind common component properties directly to Store fields.</p>
+            <div id="binding-controls" class="studio-behavior-controls"></div>
+            <button type="button" id="add-binding">Add binding</button>
+            <details class="studio-advanced-editor">
+              <summary>Advanced JSON</summary>
+              <p id="binding-json-help" class="studio-editor-help">Edit the complete validated binding map.</p>
+              <spaday-codemirror id="bindings-editor" language="json" line_numbers="false"></spaday-codemirror>
+            </details>
           </details>
           <details>
             <summary>Events</summary>
             <p id="event-help" class="studio-editor-help"></p>
-            <spaday-codemirror id="events-editor" language="json" line_numbers="false"></spaday-codemirror>
+            <div id="event-controls" class="studio-behavior-controls"></div>
+            <button type="button" id="add-event">Add event</button>
+            <details class="studio-advanced-editor">
+              <summary>Advanced JSON</summary>
+              <p id="event-json-help" class="studio-editor-help">Edit the complete validated action map.</p>
+              <spaday-codemirror id="events-editor" language="json" line_numbers="false"></spaday-codemirror>
+            </details>
           </details>
           <button type="submit" class="studio-primary">Preview changes</button>
           <div class="studio-button-row">

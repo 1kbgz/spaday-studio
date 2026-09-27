@@ -52,9 +52,11 @@ revision and is reconciled through Spaday's keyed tree patch.
 
 ## Add runtime behavior
 
-Select a component and expand **Bindings** or **Events**. These are JSON editors backed by transports'
-character-level sequence CRDT. Another Studio tab on the same revision sees edits and cursor positions as
-they happen. Invalid intermediate JSON stays in the buffer and cannot enter the project document.
+Select a component and expand **Bindings** or **Events**. Add a direct field binding, field toggle, or
+field assignment for common cases. Open **Advanced JSON** for computed bindings, composed actions, and the
+complete wire surface. The JSON editors use transports' character-level sequence CRDT. Another Studio tab
+on the same revision sees edits and cursor positions as they happen. Invalid intermediate JSON stays in the
+buffer and cannot enter the project document.
 
 Use **Runtime state** for the initial Store fields referenced by bindings and actions. **Preview state**
 validates the JSON and stages semantic `set_state` and `unset_state` operations. The canvas keeps one Store

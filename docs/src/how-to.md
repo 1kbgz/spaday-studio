@@ -38,5 +38,7 @@ The result contains the private draft document, a component-tree patch, its base
 and `preview_id` to another `preview_operations` call to append operations. Call `commit_preview` to accept
 the draft or `discard_preview` to remove it.
 
-If another client commits first, Studio rebases changes to different fields. Edits to the same property,
-binding, event, state field, node placement, or parent slot return a conflict naming the overlapping target.
+If another client commits first, Studio rebases changes to different fields. Independent appends and
+anchor-based placements also rebase while their parent and anchor remain valid. Edits to the same property,
+binding, event, state field, or node return a conflict naming the overlapping target. Numeric positions also
+conflict after an intervening structural edit because their index is no longer stable.

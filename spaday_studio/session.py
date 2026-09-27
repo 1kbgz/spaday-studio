@@ -79,6 +79,12 @@ class StudioSession:
         """Canonical document currently visible to shared clients."""
         return self.state.document
 
+    @property
+    def draft_base_revisions(self) -> set[int]:
+        """Canonical revisions still referenced by private drafts."""
+        with self._lock:
+            return {draft.base_revision for draft in self._drafts.values()}
+
     def render(self):
         """Compile the canonical document for spaday's tree endpoint."""
         return self.state.document.component()
@@ -226,9 +232,14 @@ def _conflict_reason(draft: list[StudioOperation], accepted: list[StudioOperatio
     overlap = draft_facts["nodes"] & accepted_facts["nodes"]
     if overlap:
         return f"both drafts move or remove node {min(overlap)!r}"
-    overlap = draft_facts["slots"] & accepted_facts["slots"]
+    overlap = draft_facts["indexed_slots"] & accepted_facts["slots"]
     if overlap:
-        return f"both drafts reorder slot {min(overlap)!r}"
+        return f"numeric placement is stale in slot {min(overlap)!r}"
+    if draft_facts["indexed_slots"] and accepted_facts["removed"]:
+        return "numeric placement is stale after a node was removed"
+    overlap = draft_facts["anchors"] & (accepted_facts["removed"] | accepted_facts["moved"])
+    if overlap:
+        return f"placement anchor {min(overlap)!r} moved or was removed"
     overlap = draft_facts["inserted"] & accepted_facts["inserted"]
     if overlap:
         return f"both drafts insert node {min(overlap)!r}"
@@ -236,7 +247,9 @@ def _conflict_reason(draft: list[StudioOperation], accepted: list[StudioOperatio
 
 
 def _operation_facts(operations: list[StudioOperation]) -> dict[str, set]:
-    facts: dict[str, set] = {name: set() for name in ("fields", "targets", "removed", "nodes", "slots", "inserted")}
+    facts: dict[str, set] = {
+        name: set() for name in ("fields", "targets", "removed", "moved", "nodes", "slots", "indexed_slots", "anchors", "inserted")
+    }
     for operation in operations:
         if isinstance(operation, (SetProp, UnsetProp)):
             facts["fields"].add(("prop", operation.id, operation.name))
@@ -251,11 +264,18 @@ def _operation_facts(operations: list[StudioOperation]) -> dict[str, set]:
             facts["fields"].add(("state", operation.name))
         elif isinstance(operation, InsertNode):
             facts["slots"].add((operation.parent_id, operation.slot))
+            if operation.index is not None:
+                facts["indexed_slots"].add((operation.parent_id, operation.slot))
+            facts["anchors"].update(anchor for anchor in (operation.before_id, operation.after_id) if anchor is not None)
             facts["inserted"].add(operation.node.id)
             facts["targets"].add(operation.parent_id)
         elif isinstance(operation, MoveNode):
             facts["nodes"].add(operation.id)
+            facts["moved"].add(operation.id)
             facts["slots"].add((operation.parent_id, operation.slot))
+            if operation.index is not None:
+                facts["indexed_slots"].add((operation.parent_id, operation.slot))
+            facts["anchors"].update(anchor for anchor in (operation.before_id, operation.after_id) if anchor is not None)
             facts["targets"].update((operation.id, operation.parent_id))
         elif isinstance(operation, RemoveNode):
             facts["nodes"].add(operation.id)

@@ -119,6 +119,49 @@ def test_disjoint_private_drafts_rebase_and_overlapping_drafts_conflict():
         studio.commit_preview(dave["preview_id"], owner="dave")
 
 
+def test_concurrent_appends_rebase_but_numeric_placement_and_removed_anchors_conflict():
+    studio = session()
+    alice = studio.preview(
+        0,
+        [{"kind": "insert", "parent_id": "root", "node": {"id": "alice", "tag": "p"}}],
+        owner="alice",
+    )
+    bob = studio.preview(
+        0,
+        [{"kind": "insert", "parent_id": "root", "node": {"id": "bob", "tag": "p"}}],
+        owner="bob",
+    )
+
+    studio.commit_preview(alice["preview_id"], owner="alice")
+    result = studio.commit_preview(bob["preview_id"], owner="bob")
+
+    assert [node["id"] for node in result["document"]["root"]["slots"]["default"]] == ["message", "alice", "bob"]
+
+    carol = studio.preview(
+        2,
+        [{"kind": "insert", "parent_id": "root", "index": 0, "node": {"id": "carol", "tag": "p"}}],
+        owner="carol",
+    )
+    dave = studio.preview(
+        2,
+        [{"kind": "insert", "parent_id": "root", "index": 0, "node": {"id": "dave", "tag": "p"}}],
+        owner="dave",
+    )
+    studio.commit_preview(carol["preview_id"], owner="carol")
+    with pytest.raises(PreviewConflict, match="numeric placement is stale"):
+        studio.commit_preview(dave["preview_id"], owner="dave")
+
+    erin = studio.preview(
+        3,
+        [{"kind": "insert", "parent_id": "root", "after_id": "message", "node": {"id": "erin", "tag": "p"}}],
+        owner="erin",
+    )
+    frank = studio.preview(3, [{"kind": "remove", "id": "message"}], owner="frank")
+    studio.commit_preview(frank["preview_id"], owner="frank")
+    with pytest.raises(PreviewConflict, match="placement anchor 'message' moved or was removed"):
+        studio.commit_preview(erin["preview_id"], owner="erin")
+
+
 def test_draft_owner_is_enforced_and_updates_append_to_private_document():
     studio = session()
     preview = studio.preview(0, EDIT, owner="alice")

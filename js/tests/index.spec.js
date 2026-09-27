@@ -136,37 +136,31 @@ test.describe("Studio document compiler", () => {
     );
     await page.getByRole("button", { name: "Preview state" }).click();
     await expect(page.locator("#preview-status")).toHaveText("Private draft");
-    await replaceEditor(
-      "#bindings-editor",
-      JSON.stringify(
-        { textContent: { field: "query", mode: "one-way" } },
-        null,
-        2,
-      ),
-    );
-    await replaceEditor(
-      "#events-editor",
-      JSON.stringify(
-        {
-          click: {
-            kind: "set-field",
-            field: "query",
-            value: { expr: "lit", value: "Clicked" },
-          },
-        },
-        null,
-        2,
-      ),
-    );
+    await page.getByText("Bindings", { exact: true }).click();
+    await page.getByRole("button", { name: "Add binding" }).click();
+    const binding = page.locator(".studio-binding-row");
+    await binding.locator("[data-studio-binding-name]").fill("textContent");
+    await binding.locator("[data-studio-binding-field]").fill("query");
+    await binding.locator("[data-studio-binding-field]").press("Tab");
+
+    await page.getByText("Events", { exact: true }).click();
+    await page.getByRole("button", { name: "Add event" }).click();
+    const action = page.locator(".studio-event-row");
+    await action.locator("[data-studio-event-name]").fill("click");
+    await action
+      .locator("[data-studio-action-kind]")
+      .selectOption("set-field-literal");
+    await action.locator("[data-studio-action-field]").fill("query");
+    await action.locator("[data-studio-action-value]").fill('"Clicked"');
+    await action.locator("[data-studio-action-value]").press("Tab");
     const changesResponse = page.waitForResponse((response) =>
       response.url().endsWith("/api/drafts"),
     );
     await page.getByRole("button", { name: "Preview changes" }).click();
     const changes = await (await changesResponse).json();
     expect(
-      changes.document.root.slots.default.find(
-        (node) => node.id === "headline",
-      ).bindings.textContent,
+      changes.document.root.slots.default.find((node) => node.id === "headline")
+        .bindings.textContent,
     ).toEqual({ field: "query", mode: "one-way" });
 
     await expect(page.locator('[data-spaday-studio-id="headline"]')).toHaveText(

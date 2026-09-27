@@ -53,11 +53,12 @@ The MCP endpoint is `http://127.0.0.1:8020/mcp`. Start with the
 
 ## Pilot boundaries
 
-- Binding, event-action, and runtime-state surfaces use validated JSON editors. Dedicated form controls
-  for common binding and action variants are not implemented.
-- Concurrent leaf edits rebase when they touch different fields. Concurrent structural edits to the same
-  parent slot report a conflict instead of guessing an order.
-- Revision-scoped collaborative buffers are in-memory and are not part of the saved project.
+- Common field bindings and Store-writing actions have direct controls. Validated JSON editors retain the
+  complete binding and action surface, plus runtime state.
+- Concurrent leaf edits and anchor-based structural edits rebase when their targets remain valid. Numeric
+  placement conflicts after another structural edit because its position is stale.
+- Revision-scoped collaborative buffers are in-memory, pruned after their last draft retires, and are not
+  part of the saved project.
 - Component packages are selected when the server starts; the browser cannot activate a package live.
 - Arbitrary handwritten Python is not losslessly round-tripped.
 - Python export is one-way generated output; the structured JSON project remains the editable source.
