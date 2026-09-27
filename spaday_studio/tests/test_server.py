@@ -83,7 +83,7 @@ def test_server_loads_catalogs_and_assets_only_for_selected_packages(tmp_path, m
         asset = client.get("/components/demo/index.js")
         homepage = client.get("/")
 
-    assert discovered["selected_packages"] == ["demo"]
+    assert discovered["selected_packages"] == ["codemirror", "demo"]
     demo = next(component for component in discovered["components"] if component["tag"] == "demo-button")
     assert next(prop for prop in demo["props"] if prop["name"] == "disabled") == {
         "name": "disabled",
@@ -91,6 +91,7 @@ def test_server_loads_catalogs_and_assets_only_for_selected_packages(tmp_path, m
         "choices": [],
     }
     assert asset.status_code == 200
+    assert '<script type="module" src="/components/codemirror/cdn/index.js"></script>' in homepage.text
     assert '<script type="module" src="/components/demo/index.js"></script>' in homepage.text
 
 
@@ -123,6 +124,29 @@ def test_server_wildcard_selects_all_available_packages(tmp_path, monkeypatch):
         asset = client.get("/components/demo/index.js")
 
     assert discovered["available_packages"] == ["demo"]
-    assert discovered["selected_packages"] == ["demo"]
+    assert discovered["selected_packages"] == ["codemirror", "demo"]
     assert any(component["tag"] == "demo-button" for component in discovered["components"])
     assert asset.status_code == 200
+
+
+def test_private_draft_endpoints_validate_preview_and_commit():
+    app = create_app()
+    operation = {"kind": "set_prop", "id": "headline", "name": "textContent", "value": "Private"}
+
+    with TestClient(app) as client:
+        preview = client.post(
+            "/api/drafts",
+            json={"expected_revision": 0, "actor_id": "browser-a", "operations": [operation]},
+        )
+        canonical = client.get("/api/project")
+        committed = client.post(
+            f"/api/drafts/{preview.json()['preview_id']}/commit",
+            json={"actor_id": "browser-a"},
+        )
+        schemas = client.get("/api/schema/behavior")
+
+    assert preview.status_code == 200
+    assert preview.json()["document"]["root"]["slots"]["default"][1]["props"]["textContent"] == "Private"
+    assert canonical.json()["revision"] == 0
+    assert committed.json()["revision"] == 1
+    assert set(schemas.json()) == {"action", "binding", "expr"}

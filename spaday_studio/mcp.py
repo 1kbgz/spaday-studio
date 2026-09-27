@@ -6,15 +6,16 @@ from mcp.server import MCPServer
 from pydantic import BaseModel
 
 from .catalog import ComponentCatalog, ComponentSchema, ComponentSummary, discover_catalog
-from .models import StudioNode, StudioOperation
+from .models import StudioDocument, StudioNode, StudioOperation
 from .session import StudioSession, StudioState
 
 
 class PreviewResult(BaseModel):
-    """Identity and component-tree patch for a published preview."""
+    """Identity, document, and component-tree patch for a private preview."""
 
     preview_id: str
     base_revision: int
+    document: StudioDocument
     patch: dict
 
 
@@ -60,9 +61,9 @@ def create_mcp(session: StudioSession, catalog: ComponentCatalog | None = None) 
         }
 
     @server.tool()
-    def inspect_component(component_id: str) -> StudioNode:
-        """Inspect one component by its stable Studio id."""
-        return StudioNode.model_validate(session.inspect(component_id))
+    def inspect_component(component_id: str, preview_id: str | None = None, actor_id: str = "mcp") -> StudioNode:
+        """Inspect one canonical component or a component in the actor's private preview."""
+        return StudioNode.model_validate(session.inspect(component_id, draft_id=preview_id, owner=actor_id if preview_id else None))
 
     @server.tool()
     def list_components(package: str | None = None) -> ComponentList:
@@ -81,29 +82,39 @@ def create_mcp(session: StudioSession, catalog: ComponentCatalog | None = None) 
         return PythonExport.model_validate(session.python_export())
 
     @server.tool()
-    def preview_operations(expected_revision: int, operations: list[StudioOperation]) -> PreviewResult:
-        """Validate operations and publish a live non-canonical preview to connected canvases."""
-        return PreviewResult.model_validate(session.preview(expected_revision, operations))
+    def preview_operations(
+        expected_revision: int,
+        operations: list[StudioOperation],
+        actor_id: str = "mcp",
+        preview_id: str | None = None,
+    ) -> PreviewResult:
+        """Create an actor-private preview or append operations to that preview."""
+        result = (
+            session.update_preview(preview_id, operations, owner=actor_id)
+            if preview_id is not None
+            else session.preview(expected_revision, operations, owner=actor_id)
+        )
+        return PreviewResult.model_validate(result)
 
     @server.tool()
-    def commit_preview(preview_id: str) -> StudioState:
-        """Commit the matching live preview as a new canonical revision."""
-        return StudioState.model_validate(session.commit_preview(preview_id))
+    def commit_preview(preview_id: str, actor_id: str = "mcp") -> StudioState:
+        """Commit the actor's preview, rebasing disjoint accepted changes."""
+        return StudioState.model_validate(session.commit_preview(preview_id, owner=actor_id))
 
     @server.tool()
-    def discard_preview(preview_id: str) -> StudioState:
-        """Discard the matching live preview without changing the canonical revision."""
-        return StudioState.model_validate(session.discard_preview(preview_id))
+    def discard_preview(preview_id: str, actor_id: str = "mcp") -> StudioState:
+        """Discard the actor's preview without changing the canonical revision."""
+        return StudioState.model_validate(session.discard_preview(preview_id, owner=actor_id))
 
     @server.tool()
-    def apply_operations(expected_revision: int, operations: list[StudioOperation]) -> StudioState:
+    def apply_operations(expected_revision: int, operations: list[StudioOperation], actor_id: str = "mcp") -> StudioState:
         """Commit validated operations directly, without a preview."""
-        return StudioState.model_validate(session.apply(expected_revision, operations))
+        return StudioState.model_validate(session.apply(expected_revision, operations, owner=actor_id))
 
     @server.tool()
-    def undo(expected_revision: int) -> StudioState:
-        """Restore the previous canonical document as a new revision."""
-        return StudioState.model_validate(session.undo(expected_revision))
+    def undo(expected_revision: int, actor_id: str = "mcp") -> StudioState:
+        """Undo the actor's last commit when it remains the canonical head."""
+        return StudioState.model_validate(session.undo(expected_revision, owner=actor_id))
 
     return server
 

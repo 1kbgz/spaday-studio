@@ -5,7 +5,9 @@ from __future__ import annotations
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, TypeAdapter, field_validator, model_validator
-from spaday import Component, element
+from spaday import Component, element, validate_action, validate_binding
+
+WireObject = dict[str, JsonValue]
 
 
 class StudioNode(BaseModel):
@@ -17,6 +19,8 @@ class StudioNode(BaseModel):
     tag: str = Field(min_length=1)
     key: str | None = None
     props: dict[str, JsonValue] = Field(default_factory=dict)
+    bindings: dict[str, WireObject] = Field(default_factory=dict)
+    events: dict[str, WireObject] = Field(default_factory=dict)
     slots: dict[str, list[StudioNode]] = Field(default_factory=dict)
 
     @field_validator("tag")
@@ -48,10 +52,24 @@ class StudioNode(BaseModel):
             raise ValueError("a component with textContent cannot also have child nodes")
         return self
 
+    @field_validator("bindings")
+    @classmethod
+    def valid_bindings(cls, value: dict[str, WireObject]) -> dict[str, WireObject]:
+        return {name: validate_binding(binding) for name, binding in value.items()}
+
+    @field_validator("events")
+    @classmethod
+    def valid_events(cls, value: dict[str, WireObject]) -> dict[str, WireObject]:
+        return {name: validate_action(action) for name, action in value.items()}
+
     def component(self) -> Component:
         """Compile this document node to an ordinary spaday component."""
         component = element(self.tag, key=self.key or self.id, **self.props)
         component.prop("data-spaday-studio-id", self.id)
+        for prop, binding in self.bindings.items():
+            component.bind_wire(prop, binding)
+        for event, action in self.events.items():
+            component.on_wire(event, action)
         for slot, children in self.slots.items():
             for child in children:
                 component.child_in(slot, child.component())
@@ -64,6 +82,7 @@ class StudioDocument(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     title: str
+    state: dict[str, JsonValue] = Field(default_factory=dict)
     root: StudioNode
 
     @model_validator(mode="after")
@@ -83,6 +102,17 @@ class StudioDocument(BaseModel):
         visit(self.root)
         if duplicate is not None:
             raise ValueError(f"duplicate Studio node id {duplicate!r}")
+
+        def validate_refs(node: StudioNode) -> None:
+            for event, action in node.events.items():
+                for reference in _id_references(action):
+                    if reference not in seen:
+                        raise ValueError(f"component {node.id!r} event {event!r} references missing component {reference!r}")
+            for children in node.slots.values():
+                for child in children:
+                    validate_refs(child)
+
+        validate_refs(self.root)
         return self
 
     def component(self) -> Component:
@@ -107,14 +137,81 @@ class UnsetProp(BaseModel):
     name: str
 
 
+class SetBinding(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    kind: Literal["set_binding"]
+    id: str
+    name: str
+    binding: WireObject
+
+    @field_validator("binding")
+    @classmethod
+    def valid_binding(cls, value: WireObject) -> WireObject:
+        return validate_binding(value)
+
+
+class UnsetBinding(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    kind: Literal["unset_binding"]
+    id: str
+    name: str
+
+
+class SetEvent(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    kind: Literal["set_event"]
+    id: str
+    name: str
+    action: WireObject
+
+    @field_validator("action")
+    @classmethod
+    def valid_action(cls, value: WireObject) -> WireObject:
+        return validate_action(value)
+
+
+class UnsetEvent(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    kind: Literal["unset_event"]
+    id: str
+    name: str
+
+
+class SetState(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    kind: Literal["set_state"]
+    name: str
+    value: JsonValue
+
+
+class UnsetState(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    kind: Literal["unset_state"]
+    name: str
+
+
 class InsertNode(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     kind: Literal["insert"]
     parent_id: str
     slot: str = "default"
-    index: int = Field(ge=0)
+    index: int | None = Field(default=None, ge=0)
+    before_id: str | None = None
+    after_id: str | None = None
     node: StudioNode
+
+    @model_validator(mode="after")
+    def one_position(self) -> InsertNode:
+        if sum(value is not None for value in (self.index, self.before_id, self.after_id)) > 1:
+            raise ValueError("insert accepts only one of index, before_id, or after_id")
+        return self
 
 
 class MoveNode(BaseModel):
@@ -124,7 +221,17 @@ class MoveNode(BaseModel):
     id: str
     parent_id: str
     slot: str = "default"
-    index: int = Field(ge=0)
+    index: int | None = Field(default=None, ge=0)
+    before_id: str | None = None
+    after_id: str | None = None
+
+    @model_validator(mode="after")
+    def one_position(self) -> MoveNode:
+        if sum(value is not None for value in (self.index, self.before_id, self.after_id)) > 1:
+            raise ValueError("move accepts only one of index, before_id, or after_id")
+        if self.id in {self.before_id, self.after_id}:
+            raise ValueError("a node cannot be positioned relative to itself")
+        return self
 
 
 class RemoveNode(BaseModel):
@@ -134,7 +241,10 @@ class RemoveNode(BaseModel):
     id: str
 
 
-StudioOperation = Annotated[SetProp | UnsetProp | InsertNode | MoveNode | RemoveNode, Field(discriminator="kind")]
+StudioOperation = Annotated[
+    SetProp | UnsetProp | SetBinding | UnsetBinding | SetEvent | UnsetEvent | SetState | UnsetState | InsertNode | MoveNode | RemoveNode,
+    Field(discriminator="kind"),
+]
 operations_adapter = TypeAdapter(list[StudioOperation])
 
 
@@ -175,12 +285,22 @@ def apply_operations(document: StudioDocument, operations: list[StudioOperation]
             find_node(candidate.root, operation.id).props[operation.name] = operation.value
         elif isinstance(operation, UnsetProp):
             find_node(candidate.root, operation.id).props.pop(operation.name, None)
+        elif isinstance(operation, SetBinding):
+            find_node(candidate.root, operation.id).bindings[operation.name] = operation.binding
+        elif isinstance(operation, UnsetBinding):
+            find_node(candidate.root, operation.id).bindings.pop(operation.name, None)
+        elif isinstance(operation, SetEvent):
+            find_node(candidate.root, operation.id).events[operation.name] = operation.action
+        elif isinstance(operation, UnsetEvent):
+            find_node(candidate.root, operation.id).events.pop(operation.name, None)
+        elif isinstance(operation, SetState):
+            candidate.state[operation.name] = operation.value
+        elif isinstance(operation, UnsetState):
+            candidate.state.pop(operation.name, None)
         elif isinstance(operation, InsertNode):
             parent = find_node(candidate.root, operation.parent_id)
             children = parent.slots.setdefault(operation.slot, [])
-            if operation.index > len(children):
-                raise IndexError(f"insert index {operation.index} exceeds slot length {len(children)}")
-            children.insert(operation.index, operation.node.model_copy(deep=True))
+            children.insert(_position(children, operation), operation.node.model_copy(deep=True))
         elif isinstance(operation, RemoveNode):
             location = _location(candidate.root, operation.id)
             if location is None:
@@ -199,21 +319,54 @@ def apply_operations(document: StudioDocument, operations: list[StudioOperation]
             moved = old_parent.slots[old_slot].pop(old_index)
             parent = find_node(candidate.root, operation.parent_id)
             children = parent.slots.setdefault(operation.slot, [])
-            if operation.index > len(children):
-                raise IndexError(f"move index {operation.index} exceeds slot length {len(children)}")
-            children.insert(operation.index, moved)
+            children.insert(_position(children, operation), moved)
     return StudioDocument.model_validate(candidate.model_dump())
+
+
+def _position(children: list[StudioNode], operation: InsertNode | MoveNode) -> int:
+    if operation.before_id is not None:
+        return _anchor_index(children, operation.before_id)
+    if operation.after_id is not None:
+        return _anchor_index(children, operation.after_id) + 1
+    index = len(children) if operation.index is None else operation.index
+    if index > len(children):
+        raise IndexError(f"index {index} exceeds slot length {len(children)}")
+    return index
+
+
+def _anchor_index(children: list[StudioNode], anchor_id: str) -> int:
+    try:
+        return next(index for index, child in enumerate(children) if child.id == anchor_id)
+    except StopIteration as error:
+        raise KeyError(f"slot anchor {anchor_id!r} does not exist") from error
+
+
+def _id_references(value: JsonValue) -> list[str]:
+    if isinstance(value, dict):
+        references = [value["id"]] if value.get("ref") == "id" and isinstance(value.get("id"), str) else []
+        for nested in value.values():
+            references.extend(_id_references(nested))
+        return references
+    if isinstance(value, list):
+        return [reference for nested in value for reference in _id_references(nested)]
+    return []
 
 
 __all__ = [
     "InsertNode",
     "MoveNode",
     "RemoveNode",
+    "SetBinding",
+    "SetEvent",
     "SetProp",
+    "SetState",
     "StudioDocument",
     "StudioNode",
     "StudioOperation",
+    "UnsetBinding",
+    "UnsetEvent",
     "UnsetProp",
+    "UnsetState",
     "apply_operations",
     "find_node",
     "parse_operations",

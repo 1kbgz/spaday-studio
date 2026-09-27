@@ -3,7 +3,7 @@ from __future__ import annotations
 import types
 from typing import Any, Literal
 
-from spaday import Component
+from spaday import Component, ComponentSchema as CoreComponentSchema, PropertySchema as CorePropertySchema
 
 from spaday_studio import catalog
 
@@ -28,6 +28,19 @@ class FancyCard(Component):
             props={"label": label, "active": active, "count": count, "tone": tone, "rowPatch": row_patch},
             **props,
         )
+
+
+class SchemaCard(Component):
+    tag = "schema-card"
+    schema = CoreComponentSchema(
+        tag="schema-card",
+        class_name="SchemaCard",
+        summary="Schema-backed card.",
+        props=(CorePropertySchema(name="label", kind="string"),),
+        fields=(CorePropertySchema(name="items", kind="json"),),
+        events=("activate",),
+        slots=("header", "default"),
+    )
 
 
 def test_module_catalog_infers_typed_and_wire_property_names():
@@ -75,3 +88,14 @@ def test_selected_package_loads_its_exported_component_schemas(monkeypatch):
 
     assert discovered.selected_packages == ["demo"]
     assert discovered.component("demo-card").package == "demo"
+
+
+def test_catalog_reuses_core_component_fields_events_and_slots():
+    module = types.ModuleType("schema_components")
+    module.__dict__.update(__all__=["SchemaCard"], SchemaCard=SchemaCard)
+
+    schema = catalog._module_components("demo", module)[0]
+
+    assert {prop.name for prop in schema.props} >= {"label", "items"}
+    assert schema.events == ["activate"]
+    assert schema.slots == ["header", "default"]

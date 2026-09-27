@@ -20,12 +20,14 @@ validated semantic edits; spaday applies the resulting tree diff without remount
 
 The pilot includes:
 
-- a selectable live application canvas with schema-driven property controls;
-- opt-in installed component catalogs and component insertion;
-- revision-checked insert, move, remove, and property operations;
-- transactional MCP preview, commit, discard, inspection, and undo tools;
+- a selectable live application canvas with schema-driven property, binding, action, and state controls;
+- component catalogs that retain Spaday property, field, event, and named-slot metadata;
+- revision-checked property, binding, event, state, insert, move, and remove operations;
+- private browser and MCP drafts with commit, discard, semantic rebase, conflict reporting, inspection,
+  and actor-aware undo;
+- revision-scoped CodeMirror buffers using transports sequence CRDTs and cursor awareness;
 - atomic structured-project persistence and deterministic Python export;
-- one transports-backed state shared by browser and agent clients;
+- a persistent Spaday `Store` in the preview canvas, so authored bindings and actions run normally;
 - a Python+JavaScript Copier scaffold, Playwright coverage, and Yardang/Sphinx documentation.
 
 ## Run the pilot
@@ -36,10 +38,11 @@ make build
 spaday-studio --project orbit.studio.json
 ```
 
-Open <http://127.0.0.1:8020>. Select the headline, change its text or style, and apply the edit. The
-browser receives the accepted document through transports and applies a spaday component-tree patch.
-Canonical edits are saved to `orbit.studio.json`. Use **Export Python** to download an ordinary spaday
-`page()` function for the accepted revision.
+Open <http://127.0.0.1:8020>. Select the headline, change its text or style, and preview the edit. The
+draft remains private until you click **Commit**. Accepted documents arrive through transports and the
+canvas applies a Spaday component-tree patch without replacing unaffected elements. Canonical edits are
+saved to `orbit.studio.json`. Use **Export Python** to download an ordinary Spaday `page()` function and
+its initial runtime state.
 
 The MCP endpoint is `http://127.0.0.1:8020/mcp`. Start with the
 [guided tutorial](docs/src/tutorial.md), connect an agent with the
@@ -50,11 +53,11 @@ The MCP endpoint is `http://127.0.0.1:8020/mcp`. Start with the
 
 ## Pilot boundaries
 
-- One preview is shared by all clients; per-client drafts and collaboration are not implemented.
-- Component insertion targets the selected component's default slot. Named-slot authoring is not yet
-  exposed in the editor.
-- Property schemas cover JSON-compatible constructor properties. Binding and action editors are not yet
-  implemented.
+- Binding, event-action, and runtime-state surfaces use validated JSON editors. Dedicated form controls
+  for common binding and action variants are not implemented.
+- Concurrent leaf edits rebase when they touch different fields. Concurrent structural edits to the same
+  parent slot report a conflict instead of guessing an order.
+- Revision-scoped collaborative buffers are in-memory and are not part of the saved project.
 - Component packages are selected when the server starts; the browser cannot activate a package live.
 - Arbitrary handwritten Python is not losslessly round-tripped.
 - Python export is one-way generated output; the structured JSON project remains the editable source.

@@ -88,3 +88,75 @@ def test_failed_batch_does_not_modify_input_document():
         apply_operations(source, operations)
 
     assert find_node(source.root, "a").props["textContent"] == "A"
+
+
+def test_state_bindings_events_and_named_slot_anchors_compile_through_spaday():
+    source = document()
+    operations = parse_operations(
+        [
+            {"kind": "set_state", "name": "query", "value": "hello"},
+            {
+                "kind": "set_binding",
+                "id": "a",
+                "name": "textContent",
+                "binding": {"field": "query", "mode": "one-way"},
+            },
+            {
+                "kind": "set_event",
+                "id": "a",
+                "name": "click",
+                "action": {"kind": "toggle-field", "field": "open"},
+            },
+            {
+                "kind": "insert",
+                "parent_id": "root",
+                "slot": "actions",
+                "node": {"id": "c", "tag": "button"},
+            },
+            {
+                "kind": "insert",
+                "parent_id": "root",
+                "before_id": "b",
+                "node": {"id": "d", "tag": "span"},
+            },
+        ]
+    )
+
+    edited = apply_operations(source, operations)
+    tree = edited.component().to_node()
+
+    assert edited.state == {"query": "hello"}
+    assert [node.id for node in edited.root.slots["default"]] == ["a", "d", "b"]
+    assert edited.root.slots["actions"][0].id == "c"
+    assert tree["slots"]["default"][0]["bindings"]["textContent"]["field"] == "query"
+    assert tree["slots"]["default"][0]["events"]["click"]["kind"] == "toggle-field"
+
+
+@pytest.mark.parametrize(
+    "operation",
+    [
+        {"kind": "set_binding", "id": "a", "name": "value", "binding": {"field": "x", "mode": "sideways"}},
+        {"kind": "set_event", "id": "a", "name": "click", "action": {"kind": "unknown"}},
+    ],
+)
+def test_behavior_operations_use_shared_core_validation(operation):
+    with pytest.raises((ValidationError, ValueError)):
+        parse_operations([operation])
+
+
+def test_document_rejects_event_targets_that_are_not_in_the_tree():
+    with pytest.raises(ValidationError, match="event 'click' references missing component 'missing'"):
+        StudioDocument(
+            title="bad",
+            root=StudioNode(
+                id="root",
+                tag="button",
+                events={
+                    "click": {
+                        "kind": "toggle",
+                        "target": {"ref": "id", "id": "missing"},
+                        "prop": "hidden",
+                    }
+                },
+            ),
+        )

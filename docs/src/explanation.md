@@ -12,7 +12,7 @@ that is only meaningful among siblings.
 
 This boundary also constrains an agent. Instead of producing arbitrary JavaScript or replacing HTML, the
 agent proposes a small validated operation batch against an expected revision. Studio compiles the draft,
-spaday computes its normal tree diff, and the browser applies that diff to the real application. Unaffected
+Spaday computes its normal tree diff, and the browser applies that diff to the real application. Unaffected
 custom elements keep their identity and live state.
 
 The structured document does not claim to represent every possible Python program. Loops, data-dependent
@@ -27,7 +27,19 @@ pretending Studio can reconstruct the structured document after arbitrary Python
 saves lossless for Studio while making its output useful outside Studio.
 
 Transports connects the ownership layers. Python holds the authoritative state, browser canvases mirror its
-revisions, and MCP clients use the same session. Runtime datasets stay outside the document so a large table
-or fast chart feed does not become editor state or model context. Pyodide can eventually host the same
-compiler and session in a worker for zero-install previews, while filesystem and git workflows remain on a
-server.
+revisions, and MCP clients use the same draft service and semantic operations. Each actor's draft stays out
+of the canonical transports mirror. A commit rebases changes to distinct fields and rejects overlapping
+leaf or structural changes with a concrete conflict.
+
+CodeMirror handles bounded text buffers for bindings, event actions, and initial runtime state. The buffers
+use a dynamic transports map whose values are character-level sequence CRDTs. Their keys include the base
+revision and editing surface, so collaborators on the same revision converge without turning generated
+Python or the complete project tree into a text document. Cursor awareness is ephemeral. Parsed, core-
+validated values enter `StudioDocument` only through semantic operations; invalid intermediate text remains
+in the CRDT buffer.
+
+The canvas owns one persistent Spaday `Store` seeded from the document's initial state. Tree patches retain
+that Store, so bindings and actions work in the preview instead of serving as inert serialized examples.
+Runtime datasets stay outside the document so a large table or fast chart feed does not become editor state
+or model context. Pyodide can eventually host the same compiler and session in a worker for zero-install
+previews, while filesystem and git workflows remain on a server.

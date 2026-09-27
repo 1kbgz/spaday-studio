@@ -15,20 +15,21 @@ def session() -> StudioSession:
 EDIT = [{"kind": "set_prop", "id": "message", "name": "textContent", "value": "After"}]
 
 
-def test_preview_is_visible_but_not_canonical_until_committed():
+def test_preview_is_private_and_not_canonical_until_committed():
     studio = session()
 
     preview = studio.preview(0, EDIT)
 
     assert studio.state.revision == 0
     assert studio.state.document.root.slots["default"][0].props["textContent"] == "Before"
-    assert studio.active_document.root.slots["default"][0].props["textContent"] == "After"
+    assert studio.active_document.root.slots["default"][0].props["textContent"] == "Before"
+    assert preview["document"]["root"]["slots"]["default"][0]["props"]["textContent"] == "After"
     assert preview["patch"]["ops"]
+    assert "preview" not in studio.snapshot()
 
     result = studio.commit_preview(preview["preview_id"])
 
     assert result["revision"] == 1
-    assert result["preview"] is None
     assert studio.state.document.root.slots["default"][0].props["textContent"] == "After"
 
 
@@ -89,3 +90,45 @@ def test_failed_persistence_does_not_change_session_state():
 
     assert studio.state.revision == 0
     assert studio.state.document.root.slots["default"][0].props["textContent"] == "Before"
+
+
+def test_disjoint_private_drafts_rebase_and_overlapping_drafts_conflict():
+    studio = session()
+    alice = studio.preview(0, EDIT, owner="alice")
+    bob = studio.preview(
+        0,
+        [{"kind": "set_prop", "id": "root", "name": "title", "value": "Bob"}],
+        owner="bob",
+    )
+
+    studio.commit_preview(alice["preview_id"], owner="alice")
+    result = studio.commit_preview(bob["preview_id"], owner="bob")
+
+    assert result["revision"] == 2
+    assert studio.state.document.root.props["title"] == "Bob"
+    assert studio.state.document.root.slots["default"][0].props["textContent"] == "After"
+
+    carol = studio.preview(2, EDIT, owner="carol")
+    dave = studio.preview(
+        2,
+        [{"kind": "set_prop", "id": "message", "name": "textContent", "value": "Dave"}],
+        owner="dave",
+    )
+    studio.commit_preview(carol["preview_id"], owner="carol")
+    with pytest.raises(PreviewConflict, match="both drafts edit"):
+        studio.commit_preview(dave["preview_id"], owner="dave")
+
+
+def test_draft_owner_is_enforced_and_updates_append_to_private_document():
+    studio = session()
+    preview = studio.preview(0, EDIT, owner="alice")
+
+    updated = studio.update_preview(
+        preview["preview_id"],
+        [{"kind": "set_prop", "id": "root", "name": "title", "value": "Draft"}],
+        owner="alice",
+    )
+
+    assert updated["document"]["root"]["props"]["title"] == "Draft"
+    with pytest.raises(PreviewConflict, match="another editor"):
+        studio.discard_preview(preview["preview_id"], owner="bob")

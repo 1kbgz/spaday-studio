@@ -18,6 +18,7 @@ body {
 
 button,
 input,
+select,
 textarea {
   color: inherit;
   font: inherit;
@@ -68,6 +69,21 @@ textarea {
 .studio-export:hover {
   color: white;
   background: #1d4f91;
+}
+
+.studio-status button {
+  padding: 5px 9px;
+  color: #dbeafe;
+  border: 1px solid #486080;
+  border-radius: 7px;
+  background: transparent;
+  cursor: pointer;
+}
+
+#commit-draft {
+  color: white;
+  background: #1769d2;
+  border-color: #1769d2;
 }
 
 .studio-preview-active {
@@ -213,6 +229,43 @@ textarea {
 .studio-inspector form {
   display: grid;
   gap: 13px;
+}
+
+.studio-inspector details {
+  display: grid;
+  gap: 7px;
+  padding-top: 4px;
+  border-top: 1px solid #d7deea;
+}
+
+.studio-inspector summary {
+  color: #526077;
+  font-size: 0.76rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.studio-inspector spaday-codemirror {
+  display: block;
+  height: 11rem;
+  overflow: hidden;
+  border: 1px solid #c8d1df;
+  border-radius: 8px;
+}
+
+.studio-editor-help {
+  margin: 0;
+  color: #69758a;
+  font-size: 0.7rem;
+  line-height: 1.4;
+}
+
+.studio-state-card {
+  margin-top: 18px;
+}
+
+.studio-state-card button {
+  margin-top: 7px;
 }
 
 #component-summary {

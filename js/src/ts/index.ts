@@ -11,19 +11,20 @@ export interface StudioNode {
   tag: string;
   key?: string | null;
   props: Record<string, JsonValue>;
+  bindings: Record<string, Record<string, JsonValue>>;
+  events: Record<string, Record<string, JsonValue>>;
   slots: Record<string, StudioNode[]>;
 }
 
 interface StudioDocument {
   title: string;
+  state: Record<string, JsonValue>;
   root: StudioNode;
 }
 
 interface StudioState {
   revision: number;
   document: StudioDocument;
-  preview: StudioDocument | null;
-  preview_id: string | null;
 }
 
 type PropertyKind = "string" | "boolean" | "number" | "enum" | "json";
@@ -40,6 +41,8 @@ interface ComponentSchema {
   class_name: string;
   summary?: string | null;
   props: PropertySchema[];
+  events: string[];
+  slots: string[];
 }
 
 interface ComponentCatalog {
@@ -58,7 +61,20 @@ interface WireNode {
   key?: string;
   props?: Record<string, unknown>;
   bindings?: Record<string, unknown>;
+  events?: Record<string, unknown>;
   slots?: Record<string, WireNode[]>;
+}
+
+interface JsonEditor extends HTMLElement {
+  doc: string;
+  selection: { anchor: number; head: number } | null;
+  remote_cursors: Array<{
+    peer: string;
+    anchor: number;
+    head?: number;
+    label?: string;
+    color?: string;
+  }>;
 }
 
 interface RuntimeStore {
@@ -69,11 +85,18 @@ interface RuntimeModule {
   Store: new (initial?: Record<string, unknown>) => RuntimeStore;
   mount(container: Element, tree: WireNode, store?: RuntimeStore): Element;
   diff(oldTree: string, newTree: string): string;
-  applyPatch(root: Element, patch: unknown): Element;
+  applyPatch(root: Element, patch: unknown, store?: RuntimeStore): Element;
 }
 
 interface ClientMirror {
   onChange(listener: (change: { id: number }) => void): () => void;
+  onAwareness(
+    listener: (change: { id: number; peer: string; state: unknown }) => void,
+  ): () => void;
+  awareness(id: number): ReadonlyMap<string, unknown>;
+  ids(): number[];
+  proposeCrdt(id: number, mutations: unknown[]): boolean;
+  setAwareness(id: number, state: unknown | null): boolean;
   value(id: number): unknown;
   run(url: string, options?: { onMessage?: () => void }): { stop(): void };
 }
@@ -115,6 +138,10 @@ export function compileNode(
     tag: node.tag,
     key: node.key ?? node.id,
     ...(Object.keys(props).length ? { props } : {}),
+    ...(Object.keys(node.bindings ?? {}).length
+      ? { bindings: node.bindings }
+      : {}),
+    ...(Object.keys(node.events ?? {}).length ? { events: node.events } : {}),
     ...(Object.keys(slots).length ? { slots } : {}),
   };
 }
@@ -150,16 +177,17 @@ function flattenTree(
   selectedId: string | undefined,
   depth = 0,
   items: TreeItem[] = [],
+  slot?: string,
 ): TreeItem[] {
   items.push({
     id: node.id,
-    label: `${node.tag}  ${node.id}`,
+    label: `${slot ? `[${slot}] ` : ""}${node.tag}  ${node.id}`,
     className: selectedId === node.id ? "studio-tree-selected" : "",
     style: `padding-left: ${8 + depth * 14}px`,
   });
-  for (const children of Object.values(node.slots)) {
+  for (const [name, children] of Object.entries(node.slots)) {
     for (const child of children) {
-      flattenTree(child, selectedId, depth + 1, items);
+      flattenTree(child, selectedId, depth + 1, items, name);
     }
   }
   return items;
@@ -186,17 +214,170 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
   const preview = requiredElement<HTMLElement>("#preview-status");
   const connection = requiredElement<HTMLElement>("#connection-status");
   const componentType = requiredElement<HTMLSelectElement>("#component-type");
+  const componentSlot = requiredElement<HTMLSelectElement>("#component-slot");
   const addComponent = requiredElement<HTMLButtonElement>("#add-component");
   const catalogNote = requiredElement<HTMLElement>("#catalog-note");
   const moveUp = requiredElement<HTMLButtonElement>("#move-up");
   const remove = requiredElement<HTMLButtonElement>("#remove-component");
+  const commitDraft = requiredElement<HTMLButtonElement>("#commit-draft");
+  const discardDraft = requiredElement<HTMLButtonElement>("#discard-draft");
+  const bindingsEditor = requiredElement<JsonEditor>("#bindings-editor");
+  const eventsEditor = requiredElement<JsonEditor>("#events-editor");
+  const stateEditor = requiredElement<JsonEditor>("#state-editor");
+  const eventHelp = requiredElement<HTMLElement>("#event-help");
+  const applyState = requiredElement<HTMLButtonElement>("#apply-state");
 
   let state: StudioState | undefined;
+  let draft:
+    | { preview_id: string; base_revision: number; document: StudioDocument }
+    | undefined;
   let catalog: ComponentCatalog | undefined;
   let currentTree: WireNode | undefined;
   let root: Element | undefined;
   let selectedId: string | undefined;
   let pendingSelection: string | undefined;
+  let canvasStore: RuntimeStore | undefined;
+  let canvasState: Record<string, JsonValue> = {};
+  const actorId =
+    sessionStorage.getItem("spaday-studio-actor") ??
+    globalThis.crypto?.randomUUID?.() ??
+    `${Date.now()}-${Math.random()}`;
+  sessionStorage.setItem("spaday-studio-actor", actorId);
+  const actorColor = `hsl(${[...actorId].reduce((sum, character) => sum + character.charCodeAt(0), 0) % 360} 65% 45%)`;
+  const bufferKeys = new Map<JsonEditor, string>();
+  const bufferInitial = new Map<JsonEditor, string>();
+  let bufferModelId: number | undefined;
+  let bufferValues: Record<string, string> = {};
+
+  const bufferKey = (surface: string, nodeId?: string) =>
+    `${draft?.base_revision ?? state?.revision ?? 0}:${nodeId ? `${nodeId}:` : ""}${surface}`;
+
+  const ensureBuffer = (editor: JsonEditor) => {
+    const key = bufferKeys.get(editor);
+    const initial = bufferInitial.get(editor);
+    if (!key || initial === undefined || bufferModelId === undefined) return;
+    if (!(key in bufferValues)) {
+      bufferValues[key] = initial;
+      bufferClient.proposeCrdt(bufferModelId, [
+        { kind: "map_set", path: [], key, value: initial },
+      ]);
+    }
+    editor.doc = bufferValues[key];
+  };
+
+  const activateBuffer = (editor: JsonEditor, key: string, initial: string) => {
+    bufferKeys.set(editor, key);
+    bufferInitial.set(editor, initial);
+    ensureBuffer(editor);
+    if (!(key in bufferValues)) editor.doc = initial;
+  };
+
+  const spliceText = (current: string, next: string) => {
+    const before = Array.from(current);
+    const after = Array.from(next);
+    let start = 0;
+    while (
+      start < before.length &&
+      start < after.length &&
+      before[start] === after[start]
+    )
+      start += 1;
+    let end = 0;
+    while (
+      end < before.length - start &&
+      end < after.length - start &&
+      before[before.length - 1 - end] === after[after.length - 1 - end]
+    )
+      end += 1;
+    return {
+      index: start,
+      delete_count: before.length - start - end,
+      values: after.slice(start, after.length - end),
+    };
+  };
+
+  const publishCursor = (editor: JsonEditor) => {
+    const key = bufferKeys.get(editor);
+    if (!key || bufferModelId === undefined || !editor.selection) return;
+    bufferClient.setAwareness(bufferModelId, {
+      buffer: key,
+      selection: editor.selection,
+      name: actorId.slice(0, 8),
+      color: actorColor,
+    });
+  };
+
+  const renderRemoteCursors = () => {
+    if (bufferModelId === undefined) return;
+    for (const [editor, key] of bufferKeys) {
+      editor.remote_cursors = [...bufferClient.awareness(bufferModelId)]
+        .filter(([, value]) => {
+          const candidate = value as {
+            buffer?: unknown;
+            selection?: unknown;
+          } | null;
+          return (
+            candidate?.buffer === key &&
+            candidate.selection &&
+            typeof candidate.selection === "object"
+          );
+        })
+        .map(([peer, value]) => {
+          const candidate = value as {
+            selection: { anchor: number; head?: number };
+            name?: string;
+            color?: string;
+          };
+          return {
+            peer,
+            ...candidate.selection,
+            label: candidate.name,
+            color: candidate.color,
+          };
+        });
+    }
+  };
+
+  const handleBufferEdit = (editor: JsonEditor, event: Event) => {
+    const key = bufferKeys.get(editor);
+    if (!key || bufferModelId === undefined) return;
+    const next = (event as CustomEvent<{ doc: string }>).detail.doc;
+    const current = bufferValues[key] ?? bufferInitial.get(editor) ?? "";
+    const splice = spliceText(current, next);
+    bufferValues[key] = next;
+    if (splice.delete_count || splice.values.length)
+      bufferClient.proposeCrdt(bufferModelId, [
+        {
+          kind: "sequence_splice",
+          path: [{ kind: "key", key }],
+          ...splice,
+        },
+      ]);
+    publishCursor(editor);
+  };
+
+  for (const editor of [bindingsEditor, eventsEditor, stateEditor]) {
+    editor.addEventListener("editor-change", (event) =>
+      handleBufferEdit(editor, event),
+    );
+    editor.addEventListener("editor-selection", () => publishCursor(editor));
+  }
+
+  const bufferClient = new transport.Client();
+  bufferClient.onChange((change) => {
+    bufferModelId = change.id;
+    bufferValues = transport.fromValue(bufferClient.value(change.id)) as Record<
+      string,
+      string
+    >;
+    for (const editor of bufferKeys.keys()) ensureBuffer(editor);
+    renderRemoteCursors();
+  });
+  bufferClient.onAwareness(() => renderRemoteCursors());
+  const bufferScheme = location.protocol === "https:" ? "wss" : "ws";
+  const bufferLink = bufferClient.run(
+    `${bufferScheme}://${location.host}/ws/buffers/${encodeURIComponent(actorId)}`,
+  );
 
   const treeStore = new runtime.Store({ treeItems: [] });
   const itemBinding = (path: keyof TreeItem) => ({
@@ -239,7 +420,7 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
   );
 
   const activeDocument = (): StudioDocument | undefined =>
-    state?.preview ?? state?.document;
+    draft?.document ?? state?.document;
 
   const showMessage = (value: string, error = false) => {
     message.textContent = value;
@@ -249,30 +430,69 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
   const schemaFor = (tag: string): ComponentSchema | undefined =>
     catalog?.components.find((component) => component.tag === tag);
 
-  const postOperations = async (operations: unknown[]): Promise<boolean> => {
+  const submitOperations = async (operations: unknown[]): Promise<boolean> => {
     if (!state) return false;
-    if (state.preview) {
-      showMessage(
-        "Discard or commit the active MCP preview before editing in the inspector.",
-        true,
-      );
-      return false;
-    }
-    const response = await fetch("/api/operations", {
+    const response = await fetch("/api/drafts", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ expected_revision: state.revision, operations }),
+      body: JSON.stringify({
+        expected_revision: state.revision,
+        preview_id: draft?.preview_id,
+        actor_id: actorId,
+        operations,
+      }),
     });
-    const result = (await response.json()) as { error?: string };
+    const result = (await response.json()) as {
+      error?: string;
+      preview_id: string;
+      base_revision: number;
+      document: StudioDocument;
+    };
     if (!response.ok) {
       showMessage(result.error ?? "Edit failed", true);
       return false;
     }
-    showMessage(
-      "Edit accepted; waiting for the authoritative transports patch.",
-    );
+    draft = result;
+    showMessage("Private draft updated. Commit when the preview is ready.");
+    render();
     return true;
   };
+  let operationQueue = Promise.resolve();
+  const postOperations = (operations: unknown[]): Promise<boolean> => {
+    const request = operationQueue.then(() => submitOperations(operations));
+    operationQueue = request.then(
+      () => undefined,
+      () => undefined,
+    );
+    return request;
+  };
+
+  const finishDraft = async (action: "commit" | "discard") => {
+    if (!draft) return;
+    const response = await fetch(
+      `/api/drafts/${encodeURIComponent(draft.preview_id)}/${action}`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ actor_id: actorId }),
+      },
+    );
+    const result = (await response.json()) as { error?: string };
+    if (!response.ok) {
+      showMessage(result.error ?? `Draft ${action} failed`, true);
+      return;
+    }
+    draft = undefined;
+    showMessage(
+      action === "commit"
+        ? "Draft committed; waiting for the authoritative transports patch."
+        : "Draft discarded.",
+    );
+    render();
+  };
+
+  commitDraft.addEventListener("click", () => void finishDraft("commit"));
+  discardDraft.addEventListener("click", () => void finishDraft("discard"));
 
   const inferredProperty = (
     name: string,
@@ -395,6 +615,49 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
       field.append(heading, propertyControl(property, value));
       propertyFields.append(field);
     }
+    activateBuffer(
+      bindingsEditor,
+      bufferKey("bindings", node.id),
+      JSON.stringify(node.bindings, null, 2),
+    );
+    activateBuffer(
+      eventsEditor,
+      bufferKey("events", node.id),
+      JSON.stringify(node.events, null, 2),
+    );
+    eventHelp.textContent = component?.events.length
+      ? `Declared events: ${component.events.join(", ")}. Each value must be a Spaday action.`
+      : "Map DOM event names to Spaday actions.";
+  };
+
+  const jsonObject = (source: string, label: string) => {
+    const value = JSON.parse(source) as unknown;
+    if (!value || Array.isArray(value) || typeof value !== "object")
+      throw new Error(`${label} must be a JSON object.`);
+    return value as Record<string, Record<string, JsonValue>>;
+  };
+
+  const mapOperations = (
+    node: StudioNode,
+    kind: "binding" | "event",
+    next: Record<string, Record<string, JsonValue>>,
+  ): unknown[] => {
+    const current = kind === "binding" ? node.bindings : node.events;
+    const operations: unknown[] = [];
+    for (const name of Object.keys(current)) {
+      if (!(name in next))
+        operations.push({ kind: `unset_${kind}`, id: node.id, name });
+    }
+    for (const [name, value] of Object.entries(next)) {
+      if (JSON.stringify(value) === JSON.stringify(current[name])) continue;
+      operations.push({
+        kind: `set_${kind}`,
+        id: node.id,
+        name,
+        [kind === "binding" ? "binding" : "action"]: value,
+      });
+    }
+    return operations;
   };
 
   const readControl = (control: PropertyControl): JsonValue | undefined => {
@@ -456,6 +719,17 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
     form.hidden = false;
     label.value = `${selected.tag} · ${selected.id}`;
     renderProperties(selected);
+    const component = schemaFor(selected.tag);
+    const slots = new Set([
+      "default",
+      ...(component?.slots ?? []),
+      ...Object.keys(selected.slots),
+    ]);
+    const previousSlot = componentSlot.value;
+    componentSlot.replaceChildren(
+      ...[...slots].sort().map((slot) => new Option(slot, slot)),
+    );
+    componentSlot.value = slots.has(previousSlot) ? previousSlot : "default";
     addComponent.disabled = Object.prototype.hasOwnProperty.call(
       selected.props,
       "textContent",
@@ -485,17 +759,35 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
     const active = activeDocument();
     if (!active || !state) return;
     const nextTree = compileNode(active.root, transport.toValue);
-    if (!root) root = runtime.mount(canvas, nextTree);
+    if (!canvasStore) canvasStore = new runtime.Store(active.state);
+    else {
+      for (const field of Object.keys(canvasState)) {
+        if (!(field in active.state)) canvasStore.set(field, undefined);
+      }
+      for (const [field, value] of Object.entries(active.state)) {
+        if (JSON.stringify(value) !== JSON.stringify(canvasState[field]))
+          canvasStore.set(field, value);
+      }
+    }
+    canvasState = structuredClone(active.state);
+    if (!root) root = runtime.mount(canvas, nextTree, canvasStore);
     else {
       const patch = JSON.parse(
         runtime.diff(JSON.stringify(currentTree), JSON.stringify(nextTree)),
       ) as unknown;
-      root = runtime.applyPatch(root, patch);
+      root = runtime.applyPatch(root, patch, canvasStore);
     }
     currentTree = nextTree;
     revision.textContent = `Revision ${state.revision}`;
-    preview.textContent = state.preview ? "Preview draft" : "Canonical";
-    preview.classList.toggle("studio-preview-active", Boolean(state.preview));
+    preview.textContent = draft ? "Private draft" : "Canonical";
+    preview.classList.toggle("studio-preview-active", Boolean(draft));
+    commitDraft.hidden = !draft;
+    discardDraft.hidden = !draft;
+    activateBuffer(
+      stateEditor,
+      bufferKey("state"),
+      JSON.stringify(active.state, null, 2),
+    );
     connection.textContent = "Live";
     if (pendingSelection && findNode(active.root, pendingSelection)) {
       selectedId = pendingSelection;
@@ -510,6 +802,8 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
     if (!selectedId) return;
     const operations: unknown[] = [];
     try {
+      const node = findNode(activeDocument()!.root, selectedId);
+      if (!node) throw new Error("Selected component no longer exists.");
       for (const control of propertyFields.querySelectorAll<PropertyControl>(
         ".studio-property-control",
       )) {
@@ -524,6 +818,14 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
           operations.push({ kind: "set_prop", id: selectedId, name, value });
         }
       }
+      operations.push(
+        ...mapOperations(
+          node,
+          "binding",
+          jsonObject(bindingsEditor.doc, "Bindings"),
+        ),
+        ...mapOperations(node, "event", jsonObject(eventsEditor.doc, "Events")),
+      );
     } catch (error) {
       showMessage(
         error instanceof Error ? error.message : "Invalid property value",
@@ -538,10 +840,40 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
     void postOperations(operations);
   });
 
+  applyState.addEventListener("click", () => {
+    const active = activeDocument();
+    if (!active) return;
+    try {
+      const parsed = JSON.parse(stateEditor.doc) as unknown;
+      if (!parsed || Array.isArray(parsed) || typeof parsed !== "object")
+        throw new Error("Runtime state must be a JSON object.");
+      const next = parsed as Record<string, JsonValue>;
+      const operations: unknown[] = [];
+      for (const name of Object.keys(active.state)) {
+        if (!(name in next)) operations.push({ kind: "unset_state", name });
+      }
+      for (const [name, value] of Object.entries(next)) {
+        if (JSON.stringify(value) !== JSON.stringify(active.state[name]))
+          operations.push({ kind: "set_state", name, value });
+      }
+      if (!operations.length) {
+        showMessage("No runtime state changes to preview.");
+        return;
+      }
+      void postOperations(operations);
+    } catch (error) {
+      showMessage(
+        error instanceof Error ? error.message : "Invalid runtime state",
+        true,
+      );
+    }
+  });
+
   addComponent.addEventListener("click", () => {
     if (!selectedId) return;
     const parent = findNode(activeDocument()!.root, selectedId);
-    const index = parent?.slots.default?.length ?? 0;
+    const slot = componentSlot.value;
+    const siblings = parent?.slots[slot] ?? [];
     const component = schemaFor(componentType.value);
     if (!component) return;
     const suffix = globalThis.crypto?.randomUUID?.() ?? Date.now().toString(36);
@@ -556,12 +888,16 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
       {
         kind: "insert",
         parent_id: selectedId,
-        slot: "default",
-        index,
+        slot,
+        ...(siblings.length
+          ? { after_id: siblings[siblings.length - 1].id }
+          : {}),
         node: {
           id,
           tag: component.tag,
           props,
+          bindings: {},
+          events: {},
           slots: {},
         },
       },
@@ -580,7 +916,7 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
         id: selectedId,
         parent_id: location.parent.id,
         slot: location.slot,
-        index: location.index - 1,
+        before_id: location.parent.slots[location.slot][location.index - 1].id,
       },
     ]);
   });
@@ -597,8 +933,6 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
           ? event.target.closest<HTMLElement>("[data-spaday-studio-id]")
           : null;
       if (!target) return;
-      event.preventDefault();
-      event.stopPropagation();
       const id = target.dataset.spadayStudioId;
       if (id) select(id);
     },
@@ -631,7 +965,10 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
 
   return {
     stop() {
+      if (bufferModelId !== undefined)
+        bufferClient.setAwareness(bufferModelId, null);
       link.stop();
+      bufferLink.stop();
       root?.remove();
       treeRoot.remove();
     },

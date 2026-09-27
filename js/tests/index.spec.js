@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 
 test.describe("Studio document compiler", () => {
+  test.describe.configure({ mode: "serial" });
   test("adds stable editor identity and compiles nested slots", async ({
     page,
   }) => {
@@ -12,12 +13,16 @@ test.describe("Studio document compiler", () => {
           id: "root",
           tag: "main",
           props: { title: "Pilot" },
+          bindings: { title: { field: "title", mode: "one-way" } },
+          events: { click: { kind: "toggle-field", field: "open" } },
           slots: {
             default: [
               {
                 id: "child",
                 tag: "button",
                 props: { textContent: "Edit" },
+                bindings: {},
+                events: {},
                 slots: {},
               },
             ],
@@ -29,11 +34,13 @@ test.describe("Studio document compiler", () => {
 
     expect(compiled.key).toBe("root");
     expect(compiled.props["data-spaday-studio-id"]).toBe("root");
+    expect(compiled.bindings.title.field).toBe("title");
+    expect(compiled.events.click.kind).toBe("toggle-field");
     expect(compiled.slots.default[0].key).toBe("child");
     expect(compiled.slots.default[0].props.textContent).toBe("Edit");
   });
 
-  test("applies an authoritative edit without remounting the canvas", async ({
+  test("previews privately and commits without remounting the canvas", async ({
     page,
   }) => {
     await page.goto("http://127.0.0.1:8020");
@@ -49,17 +56,22 @@ test.describe("Studio document compiler", () => {
     await page
       .locator('[data-studio-prop="textContent"]')
       .fill("Ship the interface while it is running.");
-    await page.getByRole("button", { name: "Apply properties" }).click();
+    await page.getByRole("button", { name: "Preview changes" }).click();
 
     await expect(page.locator("#revision-status")).toHaveText(
-      `Revision ${initialRevision + 1}`,
+      `Revision ${initialRevision}`,
     );
+    await expect(page.locator("#preview-status")).toHaveText("Private draft");
     await expect(page.locator('[data-spaday-studio-id="headline"]')).toHaveText(
       "Ship the interface while it is running.",
     );
     await expect(page.locator('[data-spaday-studio-id="app"]')).toHaveAttribute(
       "data-identity-probe",
       "preserved",
+    );
+    await page.getByRole("button", { name: "Commit" }).click();
+    await expect(page.locator("#revision-status")).toHaveText(
+      `Revision ${initialRevision + 1}`,
     );
     await expect(
       page.getByRole("link", { name: "Export Python" }),
@@ -72,10 +84,14 @@ test.describe("Studio document compiler", () => {
     await rootTreeButton.click();
     await page.locator("#component-type").selectOption("p");
     await page.getByRole("button", { name: "Add component" }).click();
+    await expect(page.locator("#preview-status")).toHaveText("Private draft");
+    await page.getByRole("button", { name: "Commit" }).click();
     await expect(page.locator("#revision-status")).toHaveText(
       `Revision ${initialRevision + 2}`,
     );
-    await expect(page.locator("#canvas p", { hasText: "New p" })).toBeVisible();
+    await expect(
+      page.locator("#canvas p", { hasText: "New p" }).last(),
+    ).toBeVisible();
     await expect(page.locator('[data-spaday-studio-id="app"]')).toHaveAttribute(
       "data-identity-probe",
       "preserved",
@@ -88,15 +104,153 @@ test.describe("Studio document compiler", () => {
     await rootTreeButton.click();
     await page.locator("#component-type").selectOption("input");
     await page.getByRole("button", { name: "Add component" }).click();
+    await page.locator('[data-studio-prop="type"]').fill("checkbox");
+    await page.locator('[data-studio-prop="checked"]').selectOption("true");
+    await page.getByRole("button", { name: "Preview changes" }).click();
+    await page.getByRole("button", { name: "Commit" }).click();
     await expect(page.locator("#revision-status")).toHaveText(
       `Revision ${initialRevision + 3}`,
     );
-    await page.locator('[data-studio-prop="type"]').fill("checkbox");
-    await page.locator('[data-studio-prop="checked"]').selectOption("true");
-    await page.getByRole("button", { name: "Apply properties" }).click();
-    await expect(page.locator("#revision-status")).toHaveText(
-      `Revision ${initialRevision + 4}`,
+    await expect(page.locator("#canvas input").last()).toBeChecked();
+  });
+
+  test("runs authored state, bindings, and actions through one persistent Store", async ({
+    page,
+  }) => {
+    await page.goto("http://127.0.0.1:8020");
+    await expect(page.locator("#connection-status")).toHaveText("Live");
+    await page.locator('[data-spaday-studio-id="headline"]').click();
+
+    const replaceEditor = async (selector, value) => {
+      await page.locator(selector).evaluate((editor, next) => {
+        const view = editor.view;
+        view.dispatch({
+          changes: { from: 0, to: view.state.doc.length, insert: next },
+        });
+      }, value);
+    };
+    await page.getByText("Runtime state", { exact: true }).click();
+    await replaceEditor(
+      "#state-editor",
+      JSON.stringify({ query: "Bound" }, null, 2),
     );
-    await expect(page.locator("#canvas input")).toBeChecked();
+    await page.getByRole("button", { name: "Preview state" }).click();
+    await expect(page.locator("#preview-status")).toHaveText("Private draft");
+    await replaceEditor(
+      "#bindings-editor",
+      JSON.stringify(
+        { textContent: { field: "query", mode: "one-way" } },
+        null,
+        2,
+      ),
+    );
+    await replaceEditor(
+      "#events-editor",
+      JSON.stringify(
+        {
+          click: {
+            kind: "set-field",
+            field: "query",
+            value: { expr: "lit", value: "Clicked" },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+    const changesResponse = page.waitForResponse((response) =>
+      response.url().endsWith("/api/drafts"),
+    );
+    await page.getByRole("button", { name: "Preview changes" }).click();
+    const changes = await (await changesResponse).json();
+    expect(
+      changes.document.root.slots.default.find(
+        (node) => node.id === "headline",
+      ).bindings.textContent,
+    ).toEqual({ field: "query", mode: "one-way" });
+
+    await expect(page.locator('[data-spaday-studio-id="headline"]')).toHaveText(
+      "Bound",
+    );
+    await page.getByRole("button", { name: "Commit" }).click();
+    await page.locator('[data-spaday-studio-id="headline"]').click();
+    await expect(page.locator('[data-spaday-studio-id="headline"]')).toHaveText(
+      "Clicked",
+    );
+  });
+
+  test("collaborates in bounded CRDT buffers before a private commit", async ({
+    context,
+    page,
+  }) => {
+    const peer = await context.newPage();
+    await Promise.all([
+      page.goto("http://127.0.0.1:8020"),
+      peer.goto("http://127.0.0.1:8020"),
+    ]);
+    await Promise.all([
+      expect(page.locator("#connection-status")).toHaveText("Live"),
+      expect(peer.locator("#connection-status")).toHaveText("Live"),
+    ]);
+    await page.locator('[data-spaday-studio-id="headline"]').click();
+    await peer.locator('[data-spaday-studio-id="headline"]').click();
+
+    const initialRevision = await page
+      .locator("#revision-status")
+      .textContent();
+    await page.locator("#events-editor").evaluate((editor) => {
+      const view = editor.view;
+      view.dispatch({
+        changes: { from: 0, to: view.state.doc.length, insert: "{" },
+      });
+    });
+    await expect
+      .poll(() =>
+        peer.locator("#events-editor").evaluate((editor) => editor.doc),
+      )
+      .toBe("{");
+    await page.getByRole("button", { name: "Preview changes" }).click();
+    await expect(page.locator("#studio-message")).toHaveClass(/studio-error/);
+    await expect(page.locator("#revision-status")).toHaveText(initialRevision);
+
+    const action = JSON.stringify(
+      { click: { kind: "toggle-field", field: "selected" } },
+      null,
+      2,
+    );
+    await page.locator("#events-editor").evaluate((editor, value) => {
+      const view = editor.view;
+      view.dispatch({
+        changes: { from: 0, to: view.state.doc.length, insert: value },
+        selection: { anchor: value.length },
+      });
+    }, action);
+
+    await expect
+      .poll(() =>
+        peer.locator("#events-editor").evaluate((editor) => editor.doc),
+      )
+      .toBe(action);
+    await expect
+      .poll(() =>
+        peer
+          .locator("#events-editor")
+          .evaluate((editor) => editor.remote_cursors.length),
+      )
+      .toBeGreaterThan(0);
+
+    const revision = await page.locator("#revision-status").textContent();
+    const previewResponse = peer.waitForResponse((response) =>
+      response.url().endsWith("/api/drafts"),
+    );
+    await peer.getByRole("button", { name: "Preview changes" }).click();
+    expect((await previewResponse).ok()).toBe(true);
+    await expect(peer.locator("#preview-status")).toHaveText("Private draft");
+    await expect(page.locator("#preview-status")).toHaveText("Canonical");
+    await expect(page.locator("#revision-status")).toHaveText(revision);
+
+    await peer.getByRole("button", { name: "Commit" }).click();
+    await expect(page.locator("#revision-status")).not.toHaveText(revision);
+    await peer.close();
   });
 });
