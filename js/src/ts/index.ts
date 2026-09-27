@@ -785,6 +785,11 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
     mode.value = String(binding.mode ?? "one-way");
     const event = behaviorInput(String(binding.event ?? ""), "default");
     event.dataset.studioBindingEvent = "";
+    const eventField = behaviorField("Change event", event);
+    const configureEvent = () => {
+      eventField.hidden = mode.value !== "two-way";
+    };
+    configureEvent();
     const remove = document.createElement("button");
     remove.type = "button";
     remove.textContent = "Remove";
@@ -809,8 +814,12 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
         );
       }
     };
-    for (const control of [property, field, mode, event])
+    for (const control of [property, field, event])
       control.addEventListener("change", persist);
+    mode.addEventListener("change", () => {
+      configureEvent();
+      persist();
+    });
     remove.addEventListener("click", () => {
       if (!storedName) {
         row.remove();
@@ -831,7 +840,7 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
       behaviorField("Property", property),
       behaviorField("Store field", field),
       behaviorField("Direction", mode),
-      behaviorField("Change event", event),
+      eventField,
       remove,
     );
     return row;

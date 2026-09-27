@@ -272,6 +272,10 @@ textarea {
   align-items: center;
 }
 
+.studio-behavior-row label[hidden] {
+  display: none;
+}
+
 .studio-behavior-row label span {
   font-size: 0.68rem;
 }
