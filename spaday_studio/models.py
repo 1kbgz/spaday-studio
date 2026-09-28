@@ -120,6 +120,28 @@ class StudioDocument(BaseModel):
         return self.root.component()
 
 
+class SetTitle(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    kind: Literal["set_title"]
+    value: str
+
+
+class SetKey(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    kind: Literal["set_key"]
+    id: str
+    value: str
+
+
+class UnsetKey(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    kind: Literal["unset_key"]
+    id: str
+
+
 class SetProp(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -242,15 +264,44 @@ class RemoveNode(BaseModel):
 
 
 StudioOperation = Annotated[
-    SetProp | UnsetProp | SetBinding | UnsetBinding | SetEvent | UnsetEvent | SetState | UnsetState | InsertNode | MoveNode | RemoveNode,
+    SetTitle
+    | SetKey
+    | UnsetKey
+    | SetProp
+    | UnsetProp
+    | SetBinding
+    | UnsetBinding
+    | SetEvent
+    | UnsetEvent
+    | SetState
+    | UnsetState
+    | InsertNode
+    | MoveNode
+    | RemoveNode,
     Field(discriminator="kind"),
 ]
+operation_adapter = TypeAdapter(StudioOperation)
 operations_adapter = TypeAdapter(list[StudioOperation])
 
 
 def parse_operations(value: object) -> list[StudioOperation]:
     """Validate a JSON-compatible list of semantic edit operations."""
     return operations_adapter.validate_python(value)
+
+
+def document_schema() -> dict:
+    """Return the public JSON Schema for a Studio document."""
+    return StudioDocument.model_json_schema()
+
+
+def operation_schema() -> dict:
+    """Return the public JSON Schema for one Studio operation."""
+    return operation_adapter.json_schema()
+
+
+def operation_batch_schema() -> dict:
+    """Return the public JSON Schema for an atomic Studio operation batch."""
+    return operations_adapter.json_schema()
 
 
 def find_node(root: StudioNode, node_id: str) -> StudioNode:
@@ -281,7 +332,13 @@ def apply_operations(document: StudioDocument, operations: list[StudioOperation]
     """Apply operations atomically and return a newly validated document."""
     candidate = document.model_copy(deep=True)
     for operation in operations:
-        if isinstance(operation, SetProp):
+        if isinstance(operation, SetTitle):
+            candidate.title = operation.value
+        elif isinstance(operation, SetKey):
+            find_node(candidate.root, operation.id).key = operation.value
+        elif isinstance(operation, UnsetKey):
+            find_node(candidate.root, operation.id).key = None
+        elif isinstance(operation, SetProp):
             find_node(candidate.root, operation.id).props[operation.name] = operation.value
         elif isinstance(operation, UnsetProp):
             find_node(candidate.root, operation.id).props.pop(operation.name, None)

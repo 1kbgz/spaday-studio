@@ -187,6 +187,7 @@ pages = [
     "docs/src/tutorial.md",
     "docs/src/how-to.md",
     "docs/src/save-and-export.md",
+    "docs/src/access-control.md",
     "docs/src/use-component-package.md",
     "docs/src/reference.md",
     "docs/src/explanation.md",

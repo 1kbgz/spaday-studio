@@ -15,6 +15,8 @@
       </div>
       <div class="studio-status">
         <a class="studio-export" href="/api/export/python" download="spaday_app.py">Export Python</a>
+        <button type="button" id="undo-edit" disabled>Undo</button>
+        <button type="button" id="redo-edit" disabled>Redo</button>
         <button type="button" id="discard-draft" hidden>Discard</button>
         <button type="button" id="commit-draft" hidden>Commit</button>
         <span id="preview-status">Canonical</span>
@@ -78,6 +80,8 @@
           <button type="submit" class="studio-primary">Preview changes</button>
           <div class="studio-button-row">
             <button type="button" id="move-up">Move up</button>
+            <button type="button" id="move-down">Move down</button>
+            <button type="button" id="duplicate-component">Duplicate</button>
             <button type="button" id="remove-component">Remove</button>
           </div>
         </form>

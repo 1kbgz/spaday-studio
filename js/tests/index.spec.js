@@ -43,7 +43,25 @@ test.describe("Studio document compiler", () => {
   test("previews privately and commits without remounting the canvas", async ({
     page,
   }) => {
+    let releaseDraftRecovery;
+    const draftRecoveryReleased = new Promise((resolve) => {
+      releaseDraftRecovery = resolve;
+    });
+    await page.route("**/api/drafts?actor_id=*", async (route) => {
+      await draftRecoveryReleased;
+      await route.continue();
+    });
     await page.goto("http://127.0.0.1:8020");
+    await expect(
+      page.getByRole("button", { name: "Preview changes" }),
+    ).toBeDisabled();
+    const recovered = page.waitForResponse(
+      (response) =>
+        response.request().method() === "GET" &&
+        response.url().includes("/api/drafts?actor_id="),
+    );
+    releaseDraftRecovery();
+    await recovered;
     await expect(page.locator("#connection-status")).toHaveText("Live");
     const initialRevision = Number(
       (await page.locator("#revision-status").textContent()).match(/\d+/)[0],
@@ -56,22 +74,52 @@ test.describe("Studio document compiler", () => {
     await page
       .locator('[data-studio-prop="textContent"]')
       .fill("Ship the interface while it is running.");
-    await page.getByRole("button", { name: "Preview changes" }).click();
-
-    await expect(page.locator("#revision-status")).toHaveText(
-      `Revision ${initialRevision}`,
+    const externalEdit = await page.request.post(
+      "http://127.0.0.1:8020/api/operations",
+      {
+        data: {
+          expected_revision: initialRevision,
+          actor_id: "external-test",
+          operations: [{ kind: "set_title", value: "External update" }],
+        },
+      },
     );
-    await expect(page.locator("#preview-status")).toHaveText("Private draft");
-    await expect(page.locator('[data-spaday-studio-id="headline"]')).toHaveText(
+    expect(externalEdit.ok()).toBe(true);
+    await expect(page.locator("#revision-status")).toHaveText(
+      `Revision ${initialRevision + 1}`,
+    );
+    await expect(page.locator('[data-studio-prop="textContent"]')).toHaveValue(
       "Ship the interface while it is running.",
     );
+    const previewResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        response.url().endsWith("/api/drafts"),
+    );
+    await page.getByRole("button", { name: "Preview changes" }).click();
+    await expect(page.locator("#studio-message")).toHaveText(
+      "Private draft updated. Commit when the preview is ready.",
+    );
+    const previewResult = await previewResponse;
+    expect(previewResult.ok()).toBe(true);
+    const previewDocument = await previewResult.json();
+    expect(
+      previewDocument.document.root.slots.default.find(
+        (node) => node.id === "headline",
+      ).props.textContent,
+    ).toBe("Ship the interface while it is running.");
+
+    await expect(page.locator("#revision-status")).toHaveText(
+      `Revision ${initialRevision + 1}`,
+    );
+    await expect(page.locator("#preview-status")).toHaveText("Private draft");
     await expect(page.locator('[data-spaday-studio-id="app"]')).toHaveAttribute(
       "data-identity-probe",
       "preserved",
     );
     await page.getByRole("button", { name: "Commit" }).click();
     await expect(page.locator("#revision-status")).toHaveText(
-      `Revision ${initialRevision + 1}`,
+      `Revision ${initialRevision + 2}`,
     );
     await expect(
       page.getByRole("link", { name: "Export Python" }),
@@ -87,7 +135,7 @@ test.describe("Studio document compiler", () => {
     await expect(page.locator("#preview-status")).toHaveText("Private draft");
     await page.getByRole("button", { name: "Commit" }).click();
     await expect(page.locator("#revision-status")).toHaveText(
-      `Revision ${initialRevision + 2}`,
+      `Revision ${initialRevision + 3}`,
     );
     await expect(
       page.locator("#canvas p", { hasText: "New p" }).last(),
@@ -109,7 +157,7 @@ test.describe("Studio document compiler", () => {
     await page.getByRole("button", { name: "Preview changes" }).click();
     await page.getByRole("button", { name: "Commit" }).click();
     await expect(page.locator("#revision-status")).toHaveText(
-      `Revision ${initialRevision + 3}`,
+      `Revision ${initialRevision + 4}`,
     );
     await expect(page.locator("#canvas input").last()).toBeChecked();
   });
@@ -171,6 +219,88 @@ test.describe("Studio document compiler", () => {
     await expect(page.locator('[data-spaday-studio-id="headline"]')).toHaveText(
       "Clicked",
     );
+  });
+
+  test("undoes and redoes the actor's latest accepted edit", async ({
+    page,
+  }) => {
+    await page.goto("http://127.0.0.1:8020");
+    await expect(page.locator("#connection-status")).toHaveText("Live");
+    const initialRevision = Number(
+      (await page.locator("#revision-status").textContent()).match(/\d+/)[0],
+    );
+    await page.locator('[data-spaday-studio-id="intro"]').click();
+    const before = await page
+      .locator('[data-spaday-studio-id="intro"]')
+      .textContent();
+    await page.locator('[data-studio-prop="textContent"]').fill("History test");
+    await page.getByRole("button", { name: "Preview changes" }).click();
+    await page.getByRole("button", { name: "Commit" }).click();
+    await expect(page.locator("#revision-status")).toHaveText(
+      `Revision ${initialRevision + 1}`,
+    );
+    await expect(page.getByRole("button", { name: "Undo" })).toBeEnabled();
+
+    await page.getByRole("button", { name: "Undo" }).click();
+    await expect(page.locator("#revision-status")).toHaveText(
+      `Revision ${initialRevision + 2}`,
+    );
+    await expect(page.locator('[data-spaday-studio-id="intro"]')).toHaveText(
+      before,
+    );
+    await expect(page.getByRole("button", { name: "Redo" })).toBeEnabled();
+
+    await page.getByRole("button", { name: "Redo" }).click();
+    await expect(page.locator("#revision-status")).toHaveText(
+      `Revision ${initialRevision + 3}`,
+    );
+    await expect(page.locator('[data-spaday-studio-id="intro"]')).toHaveText(
+      "History test",
+    );
+  });
+
+  test("moves components in both directions and duplicates subtrees", async ({
+    page,
+  }) => {
+    await page.goto("http://127.0.0.1:8020");
+    await expect(page.locator("#connection-status")).toHaveText("Live");
+    await page.locator('[data-spaday-studio-id="intro"]').click();
+    const childIds = () =>
+      page
+        .locator("#canvas main > *")
+        .evaluateAll((elements) =>
+          elements.map((element) =>
+            element.getAttribute("data-spaday-studio-id"),
+          ),
+        );
+    const beforeMove = await childIds();
+    const introIndex = beforeMove.indexOf("intro");
+    const movedDown = [...beforeMove];
+    [movedDown[introIndex], movedDown[introIndex + 1]] = [
+      movedDown[introIndex + 1],
+      movedDown[introIndex],
+    ];
+
+    await page.getByRole("button", { name: "Move down" }).click();
+    await expect(page.locator("#preview-status")).toHaveText("Private draft");
+    await expect.poll(childIds).toEqual(movedDown);
+    await page.getByRole("button", { name: "Move up" }).click();
+    await expect.poll(childIds).toEqual(beforeMove);
+
+    const sourceText = await page
+      .locator('[data-spaday-studio-id="intro"]')
+      .textContent();
+    await page.getByRole("button", { name: "Duplicate" }).click();
+    await expect(page.locator("#component-label")).toHaveValue(
+      /p · intro-copy-/,
+    );
+    const copyId = (await page.locator("#component-label").inputValue()).split(
+      " · ",
+    )[1];
+    await expect(
+      page.locator(`[data-spaday-studio-id="${copyId}"]`),
+    ).toHaveText(sourceText);
+    await page.getByRole("button", { name: "Discard" }).click();
   });
 
   test("collaborates in bounded CRDT buffers before a private commit", async ({
@@ -246,5 +376,34 @@ test.describe("Studio document compiler", () => {
     await peer.getByRole("button", { name: "Commit" }).click();
     await expect(page.locator("#revision-status")).not.toHaveText(revision);
     await peer.close();
+  });
+
+  test("recovers a private draft after a browser refresh", async ({ page }) => {
+    await page.goto("http://127.0.0.1:8020");
+    await expect(page.locator("#connection-status")).toHaveText("Live");
+    await page.locator('[data-spaday-studio-id="headline"]').click();
+    await page
+      .locator('[data-studio-prop="textContent"]')
+      .fill("Recovered draft");
+    const previewResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        response.url().endsWith("/api/drafts"),
+    );
+    await page.getByRole("button", { name: "Preview changes" }).click();
+    await expect(page.locator("#studio-message")).toHaveText(
+      "Private draft updated. Commit when the preview is ready.",
+    );
+    expect((await previewResponse).ok()).toBe(true);
+    await expect(page.locator("#preview-status")).toHaveText("Private draft");
+
+    await page.reload();
+
+    await expect(page.locator("#preview-status")).toHaveText("Private draft");
+    await expect(page.locator('[data-spaday-studio-id="headline"]')).toHaveText(
+      "Recovered draft",
+    );
+    await page.getByRole("button", { name: "Discard" }).click();
+    await expect(page.locator("#preview-status")).toHaveText("Canonical");
   });
 });

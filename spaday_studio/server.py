@@ -16,10 +16,11 @@ from spaday.backends.starlette import mount
 from spaday.packages import package_url_prefix
 from spaday_codemirror import package as codemirror_package
 
+from .access import StudioAccessContext, StudioAuthorizer, StudioRole, allow_all, require_access
 from .catalog import discover_catalog
 from .example import document as example_document
 from .mcp import create_mcp
-from .models import StudioDocument
+from .models import StudioDocument, document_schema, operation_batch_schema, operation_schema
 from .project import ProjectFile
 from .session import PreviewConflict, RevisionConflict, StudioSession
 
@@ -63,10 +64,11 @@ def create_app(
     *,
     project_path: str | Path | None = None,
     packages: Sequence[str] = (),
+    authorize: StudioAuthorizer = allow_all,
 ):
     """Create the pilot ASGI application for ``document``."""
     from starlette.applications import Starlette
-    from starlette.responses import HTMLResponse, JSONResponse, PlainTextResponse
+    from starlette.responses import HTMLResponse, JSONResponse, PlainTextResponse, Response
     from starlette.routing import Mount, Route, WebSocketRoute
 
     project_file = ProjectFile(project_path) if project_path is not None else None
@@ -105,7 +107,7 @@ def create_app(
         ),
     )
     buffer_endpoint = transports.ws_endpoint(buffer_hub)
-    mcp = create_mcp(studio, component_catalog)
+    mcp = create_mcp(studio, component_catalog, authorize=authorize)
     mcp_app = mcp.streamable_http_app(streamable_http_path="/")
 
     async def project(_request):
@@ -120,6 +122,15 @@ def create_app(
     async def behavior_schema(_request):
         return JSONResponse({"action": action_schema(), "binding": binding_schema(), "expr": expr_schema()})
 
+    async def studio_document_schema(_request):
+        return JSONResponse(document_schema())
+
+    async def studio_operation_schema(_request):
+        return JSONResponse(operation_schema())
+
+    async def studio_operation_batch_schema(_request):
+        return JSONResponse(operation_batch_schema())
+
     async def python_export(_request):
         return PlainTextResponse(
             studio.python_source(),
@@ -127,12 +138,48 @@ def create_app(
             headers={"content-disposition": 'attachment; filename="spaday_app.py"'},
         )
 
+    def http_access(request, actor_id: str, required: StudioRole):
+        return require_access(authorize, StudioAccessContext("http", request), actor_id, required)
+
+    async def access(request):
+        try:
+            actor_id = request.query_params["actor_id"]
+            role = http_access(request, actor_id, "read")
+        except (KeyError, PermissionError, ValueError) as error:
+            return JSONResponse({"error": str(error)}, status_code=403)
+        return JSONResponse({"actor_id": actor_id, "role": role})
+
     async def operations(request):
         try:
             body = await request.json()
-            result = studio.apply(body["expected_revision"], body["operations"])
-        except (KeyError, IndexError, TypeError, ValueError, ValidationError) as error:
-            status = 409 if isinstance(error, (RevisionConflict, PreviewConflict)) else 422
+            actor_id = body.get("actor_id", "direct")
+            http_access(request, actor_id, "admin")
+            result = studio.apply(body["expected_revision"], body["operations"], owner=actor_id)
+        except (KeyError, IndexError, PermissionError, TypeError, ValueError, ValidationError) as error:
+            status = 403 if isinstance(error, PermissionError) else 409 if isinstance(error, (RevisionConflict, PreviewConflict)) else 422
+            return JSONResponse({"error": str(error)}, status_code=status)
+        cleanup_buffers()
+        return JSONResponse(result)
+
+    async def history(request):
+        try:
+            actor_id = request.query_params.get("actor_id", "direct")
+            http_access(request, actor_id, "read")
+            return JSONResponse(studio.history(actor_id))
+        except (PermissionError, ValueError) as error:
+            return JSONResponse({"error": str(error)}, status_code=403)
+
+    async def change_history(request):
+        try:
+            body = await request.json()
+            http_access(request, body["actor_id"], "edit")
+            action = request.path_params["action"]
+            if action not in {"undo", "redo"}:
+                raise ValueError(f"unknown history action {action!r}")
+            method = studio.undo if action == "undo" else studio.redo
+            result = method(body["expected_revision"], owner=body["actor_id"])
+        except (KeyError, IndexError, PermissionError, TypeError, ValueError, ValidationError) as error:
+            status = 403 if isinstance(error, PermissionError) else 409 if isinstance(error, (RevisionConflict, PreviewConflict)) else 422
             return JSONResponse({"error": str(error)}, status_code=status)
         cleanup_buffers()
         return JSONResponse(result)
@@ -140,30 +187,44 @@ def create_app(
     async def preview_operations(request):
         try:
             body = await request.json()
+            http_access(request, body["actor_id"], "edit")
             if body.get("preview_id"):
                 result = studio.update_preview(body["preview_id"], body["operations"], owner=body["actor_id"])
             else:
                 result = studio.preview(body["expected_revision"], body["operations"], owner=body["actor_id"])
-        except (KeyError, IndexError, TypeError, ValueError, ValidationError) as error:
-            status = 409 if isinstance(error, (RevisionConflict, PreviewConflict)) else 422
+        except (KeyError, IndexError, PermissionError, TypeError, ValueError, ValidationError) as error:
+            status = 403 if isinstance(error, PermissionError) else 409 if isinstance(error, (RevisionConflict, PreviewConflict)) else 422
             return JSONResponse({"error": str(error)}, status_code=status)
         cleanup_buffers()
         return JSONResponse(result)
 
+    async def current_preview(request):
+        try:
+            actor_id = request.query_params.get("actor_id", "direct")
+            http_access(request, actor_id, "edit")
+            result = studio.preview_for(actor_id)
+            return JSONResponse(result) if result is not None else Response(status_code=204)
+        except (PermissionError, ValueError) as error:
+            return JSONResponse({"error": str(error)}, status_code=403)
+
     async def commit_preview(request):
         try:
-            result = studio.commit_preview(request.path_params["preview_id"], owner=(await request.json())["actor_id"])
-        except (KeyError, IndexError, TypeError, ValueError, ValidationError) as error:
-            status = 409 if isinstance(error, (RevisionConflict, PreviewConflict)) else 422
+            actor_id = (await request.json())["actor_id"]
+            http_access(request, actor_id, "edit")
+            result = studio.commit_preview(request.path_params["preview_id"], owner=actor_id)
+        except (KeyError, IndexError, PermissionError, TypeError, ValueError, ValidationError) as error:
+            status = 403 if isinstance(error, PermissionError) else 409 if isinstance(error, (RevisionConflict, PreviewConflict)) else 422
             return JSONResponse({"error": str(error)}, status_code=status)
         cleanup_buffers()
         return JSONResponse(result)
 
     async def discard_preview(request):
         try:
-            result = studio.discard_preview(request.path_params["preview_id"], owner=(await request.json())["actor_id"])
-        except (KeyError, IndexError, TypeError, ValueError, ValidationError) as error:
-            status = 409 if isinstance(error, (RevisionConflict, PreviewConflict)) else 422
+            actor_id = (await request.json())["actor_id"]
+            http_access(request, actor_id, "edit")
+            result = studio.discard_preview(request.path_params["preview_id"], owner=actor_id)
+        except (KeyError, IndexError, PermissionError, TypeError, ValueError, ValidationError) as error:
+            status = 403 if isinstance(error, PermissionError) else 409 if isinstance(error, (RevisionConflict, PreviewConflict)) else 422
             return JSONResponse({"error": str(error)}, status_code=status)
         cleanup_buffers()
         return JSONResponse(result)
@@ -178,7 +239,12 @@ def create_app(
 
     async def buffers(websocket):
         actor_id = websocket.path_params["actor_id"]
-        buffer_hub.subscribe(actor_id, buffer_id, transports.WRITE)
+        try:
+            role = require_access(authorize, StudioAccessContext("websocket", websocket), actor_id, "read")
+        except (PermissionError, ValueError):
+            await websocket.close(code=1008)
+            return
+        buffer_hub.subscribe(actor_id, buffer_id, transports.READ if role == "read" else transports.WRITE)
         await buffer_endpoint(websocket)
 
     @asynccontextmanager
@@ -207,11 +273,18 @@ def create_app(
             WebSocketRoute("/ws", transports.ws_endpoint(broadcaster)),
             WebSocketRoute("/ws/buffers/{actor_id:str}", buffers),
             Route("/api/project", project),
+            Route("/api/access", access),
             Route("/api/catalog", catalog),
             Route("/api/schema/behavior", behavior_schema),
+            Route("/api/schema/document", studio_document_schema),
+            Route("/api/schema/operation", studio_operation_schema),
+            Route("/api/schema/operations", studio_operation_batch_schema),
             Route("/api/export/python", python_export),
             Route("/api/operations", operations, methods=["POST"]),
+            Route("/api/history", history),
+            Route("/api/history/{action:str}", change_history, methods=["POST"]),
             Route("/api/drafts", preview_operations, methods=["POST"]),
+            Route("/api/drafts", current_preview, methods=["GET"]),
             Route("/api/drafts/{preview_id:str}/commit", commit_preview, methods=["POST"]),
             Route("/api/drafts/{preview_id:str}/discard", discard_preview, methods=["POST"]),
         ],

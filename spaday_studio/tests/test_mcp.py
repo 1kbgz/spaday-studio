@@ -18,9 +18,11 @@ def test_mcp_exposes_inspection_and_transactional_edit_tools():
         "discard_preview",
         "export_python",
         "get_component_schema",
+        "history",
         "inspect_component",
         "list_components",
         "preview_operations",
+        "redo",
         "undo",
     }
 
@@ -97,12 +99,16 @@ def test_mcp_resources_and_mutating_tools_follow_the_draft_lifecycle():
         assert applied.structured_content["revision"] == 2
         undone = await server.call_tool("undo", {"expected_revision": 2})
         assert undone.structured_content["revision"] == 3
+        history = await server.call_tool("history", {})
+        assert history.structured_content == {"can_undo": True, "can_redo": True}
+        redone = await server.call_tool("redo", {"expected_revision": 3})
+        assert redone.structured_content["revision"] == 4
 
         discarded = await server.call_tool(
             "preview_operations",
-            {"expected_revision": 3, "operations": [operation]},
+            {"expected_revision": 4, "operations": [operation]},
         )
         result = await server.call_tool("discard_preview", {"preview_id": discarded.structured_content["preview_id"]})
-        assert result.structured_content["revision"] == 3
+        assert result.structured_content["revision"] == 4
 
     asyncio.run(lifecycle())

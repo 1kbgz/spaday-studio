@@ -67,6 +67,7 @@ interface WireNode {
 
 interface JsonEditor extends HTMLElement {
   doc: string;
+  read_only: boolean;
   selection: { anchor: number; head: number } | null;
   remote_cursors: Array<{
     peer: string;
@@ -90,6 +91,7 @@ interface RuntimeModule {
 
 interface ClientMirror {
   onChange(listener: (change: { id: number }) => void): () => void;
+  onConnect(listener: () => void): () => void;
   onAwareness(
     listener: (change: { id: number; peer: string; state: unknown }) => void,
   ): () => void;
@@ -218,9 +220,13 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
   const addComponent = requiredElement<HTMLButtonElement>("#add-component");
   const catalogNote = requiredElement<HTMLElement>("#catalog-note");
   const moveUp = requiredElement<HTMLButtonElement>("#move-up");
+  const moveDown = requiredElement<HTMLButtonElement>("#move-down");
+  const duplicate = requiredElement<HTMLButtonElement>("#duplicate-component");
   const remove = requiredElement<HTMLButtonElement>("#remove-component");
   const commitDraft = requiredElement<HTMLButtonElement>("#commit-draft");
   const discardDraft = requiredElement<HTMLButtonElement>("#discard-draft");
+  const undoEdit = requiredElement<HTMLButtonElement>("#undo-edit");
+  const redoEdit = requiredElement<HTMLButtonElement>("#redo-edit");
   const bindingControls = requiredElement<HTMLElement>("#binding-controls");
   const eventControls = requiredElement<HTMLElement>("#event-controls");
   const addBinding = requiredElement<HTMLButtonElement>("#add-binding");
@@ -252,10 +258,52 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
   const actorColor = `hsl(${[...actorId].reduce((sum, character) => sum + character.charCodeAt(0), 0) % 360} 65% 45%)`;
   const bufferKeys = new Map<JsonEditor, string>();
   const bufferInitial = new Map<JsonEditor, string>();
-  const initializedBufferKeys = new Set<string>();
+  const pendingPropertyValues = new Map<string, Map<string, string>>();
   let bufferModelId: number | undefined;
   let bufferValues: Record<string, string> = {};
   let renderBehaviorControls = (_node: StudioNode) => {};
+  let accessRole: "read" | "edit" | "admin" = "read";
+  let catalogReady = false;
+  let accessReady = false;
+  let draftRecoveryReady = false;
+  let bufferReady = false;
+  let committedRevision: number | undefined;
+  let historyRequest = 0;
+  const isReady = () =>
+    Boolean(
+      state && catalogReady && accessReady && draftRecoveryReady && bufferReady,
+    );
+
+  const configureAccess = () => {
+    const readOnly = accessRole === "read" || !isReady();
+    for (const control of [
+      componentType,
+      componentSlot,
+      addBinding,
+      addEvent,
+      applyState,
+    ])
+      control.disabled = readOnly;
+    for (const control of form.querySelectorAll<
+      | HTMLInputElement
+      | HTMLSelectElement
+      | HTMLTextAreaElement
+      | HTMLButtonElement
+    >(
+      ".studio-property-control, button[type='submit'], .studio-behavior-row input, .studio-behavior-row select, .studio-behavior-row button",
+    ))
+      control.disabled = readOnly;
+    if (readOnly) {
+      addComponent.disabled = true;
+      moveUp.disabled = true;
+      moveDown.disabled = true;
+      duplicate.disabled = true;
+      remove.disabled = true;
+    }
+    for (const editor of [bindingsEditor, eventsEditor, stateEditor])
+      editor.read_only = readOnly;
+  };
+  configureAccess();
 
   const bufferKey = (surface: string, nodeId?: string) =>
     `${draft?.base_revision ?? state?.revision ?? 0}:${nodeId ? `${nodeId}:` : ""}${surface}`;
@@ -265,13 +313,9 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
     const initial = bufferInitial.get(editor);
     if (!key || initial === undefined || bufferModelId === undefined) return;
     if (!(key in bufferValues)) {
-      if (initializedBufferKeys.has(key)) return;
-      initializedBufferKeys.add(key);
-      bufferValues[key] = initial;
-      bufferClient.proposeCrdt(bufferModelId, [
-        { kind: "map_set", path: [], key, value: initial },
-      ]);
-    } else initializedBufferKeys.add(key);
+      editor.doc = initial;
+      return;
+    }
     editor.doc = bufferValues[key];
   };
 
@@ -353,20 +397,28 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
     next: string,
     updateEditor = false,
   ) => {
+    if (accessRole === "read") return;
     const key = bufferKeys.get(editor);
     if (!key || bufferModelId === undefined) return;
+    const shared = key in bufferValues;
     const current = bufferValues[key] ?? bufferInitial.get(editor) ?? "";
     const splice = spliceText(current, next);
     bufferValues[key] = next;
     if (updateEditor) editor.doc = next;
-    if (splice.delete_count || splice.values.length)
-      bufferClient.proposeCrdt(bufferModelId, [
-        {
-          kind: "sequence_splice",
-          path: [{ kind: "key", key }],
-          ...splice,
-        },
-      ]);
+    if (splice.delete_count || splice.values.length) {
+      bufferClient.proposeCrdt(
+        bufferModelId,
+        shared
+          ? [
+              {
+                kind: "sequence_splice",
+                path: [{ kind: "key", key }],
+                ...splice,
+              },
+            ]
+          : [{ kind: "map_set", path: [], key, value: next }],
+      );
+    }
     publishCursor(editor);
   };
 
@@ -383,6 +435,8 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
 
   const bufferClient = new transport.Client();
   bufferClient.onChange((change) => {
+    const becameReady = !bufferReady;
+    bufferReady = true;
     bufferModelId = change.id;
     bufferValues = transport.fromValue(bufferClient.value(change.id)) as Record<
       string,
@@ -394,6 +448,7 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
       active && selectedId ? findNode(active.root, selectedId) : undefined;
     if (selected) renderBehaviorControls(selected);
     renderRemoteCursors();
+    if (becameReady && state) render();
   });
   bufferClient.onAwareness(() => renderRemoteCursors());
   const bufferScheme = location.protocol === "https:" ? "wss" : "ws";
@@ -449,6 +504,50 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
     message.classList.toggle("studio-error", error);
   };
 
+  const refreshHistory = async () => {
+    const request = ++historyRequest;
+    if (draft || accessRole === "read") {
+      undoEdit.disabled = true;
+      redoEdit.disabled = true;
+      return;
+    }
+    const response = await fetch(
+      `/api/history?actor_id=${encodeURIComponent(actorId)}`,
+    );
+    if (!response.ok) return;
+    const available = (await response.json()) as {
+      can_undo: boolean;
+      can_redo: boolean;
+    };
+    if (request !== historyRequest || draft) return;
+    undoEdit.disabled = !available.can_undo;
+    redoEdit.disabled = !available.can_redo;
+  };
+
+  const changeHistory = async (action: "undo" | "redo") => {
+    if (!state || draft) return;
+    undoEdit.disabled = true;
+    redoEdit.disabled = true;
+    const response = await fetch(`/api/history/${action}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        expected_revision: state.revision,
+        actor_id: actorId,
+      }),
+    });
+    const result = (await response.json()) as { error?: string };
+    if (!response.ok) {
+      showMessage(result.error ?? `${action} failed`, true);
+      await refreshHistory();
+      return;
+    }
+    showMessage(`${action === "undo" ? "Undo" : "Redo"} accepted.`);
+  };
+
+  undoEdit.addEventListener("click", () => void changeHistory("undo"));
+  redoEdit.addEventListener("click", () => void changeHistory("redo"));
+
   const schemaFor = (tag: string): ComponentSchema | undefined =>
     catalog?.components.find((component) => component.tag === tag);
 
@@ -499,22 +598,60 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
         body: JSON.stringify({ actor_id: actorId }),
       },
     );
-    const result = (await response.json()) as { error?: string };
+    const result = (await response.json()) as {
+      error?: string;
+      revision: number;
+    };
     if (!response.ok) {
       showMessage(result.error ?? `Draft ${action} failed`, true);
       return;
     }
-    draft = undefined;
+    if (action === "discard") {
+      draft = undefined;
+      showMessage("Draft discarded.");
+      render();
+      return;
+    }
+    committedRevision = result.revision;
     showMessage(
-      action === "commit"
-        ? "Draft committed; waiting for the authoritative transports patch."
-        : "Draft discarded.",
+      "Draft committed; waiting for the authoritative transports patch.",
     );
-    render();
+    if (
+      state &&
+      committedRevision !== undefined &&
+      state.revision >= committedRevision
+    ) {
+      draft = undefined;
+      committedRevision = undefined;
+      render();
+    }
   };
 
   commitDraft.addEventListener("click", () => void finishDraft("commit"));
   discardDraft.addEventListener("click", () => void finishDraft("discard"));
+
+  const recoverDraft = async () => {
+    const draftAtStart = draft;
+    const response = await fetch(
+      `/api/drafts?actor_id=${encodeURIComponent(actorId)}`,
+    );
+    let recovered: typeof draft;
+    if (response.status === 204) recovered = undefined;
+    else if (response.ok)
+      recovered = (await response.json()) as {
+        preview_id: string;
+        base_revision: number;
+        document: StudioDocument;
+      };
+    else {
+      draftRecoveryReady = true;
+      if (state) render();
+      return;
+    }
+    draftRecoveryReady = true;
+    if (draft === draftAtStart) draft = recovered;
+    if (state) render();
+  };
 
   const inferredProperty = (
     name: string,
@@ -535,6 +672,7 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
   const propertyControl = (
     property: PropertySchema,
     value: JsonValue | undefined,
+    onEdit: (value: string) => void,
   ): PropertyControl => {
     let control: PropertyControl;
     if (property.kind === "boolean" || property.kind === "enum") {
@@ -576,10 +714,10 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
     control.className = "studio-property-control";
     control.dataset.studioProp = property.name;
     control.dataset.kind = property.kind;
-    control.dataset.present = String(value !== undefined);
     control.dataset.dirty = "false";
     const markDirty = () => {
       control.dataset.dirty = "true";
+      onEdit(control.value);
     };
     control.addEventListener("input", markDirty);
     control.addEventListener("change", markDirty);
@@ -587,6 +725,7 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
   };
 
   const renderProperties = (node: StudioNode) => {
+    const pending = pendingPropertyValues.get(node.id);
     const component = schemaFor(node.tag);
     summary.textContent =
       component?.summary ??
@@ -628,13 +767,24 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
         unset.type = "button";
         unset.textContent = "Unset";
         unset.addEventListener("click", () => {
+          pending?.delete(property.name);
           void postOperations([
             { kind: "unset_prop", id: node.id, name: property.name },
           ]);
         });
         heading.append(unset);
       }
-      field.append(heading, propertyControl(property, value));
+      const control = propertyControl(property, value, (next) => {
+        const edits =
+          pendingPropertyValues.get(node.id) ?? new Map<string, string>();
+        edits.set(property.name, next);
+        pendingPropertyValues.set(node.id, edits);
+      });
+      if (pending?.has(property.name)) {
+        control.value = pending.get(property.name)!;
+        control.dataset.dirty = "true";
+      }
+      field.append(heading, control);
       propertyFields.append(field);
     }
     activateBuffer(
@@ -1080,6 +1230,11 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
     remove.disabled = selected.id === active.root.id;
     const location = findLocation(active.root, selected.id);
     moveUp.disabled = !location || location.index === 0;
+    moveDown.disabled =
+      !location ||
+      location.index === location.parent.slots[location.slot].length - 1;
+    duplicate.disabled = !location;
+    configureAccess();
     renderTree();
   };
 
@@ -1126,12 +1281,13 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
     preview.classList.toggle("studio-preview-active", Boolean(draft));
     commitDraft.hidden = !draft;
     discardDraft.hidden = !draft;
+    void refreshHistory();
     activateBuffer(
       stateEditor,
       bufferKey("state"),
       JSON.stringify(active.state, null, 2),
     );
-    connection.textContent = "Live";
+    connection.textContent = isReady() ? "Live" : "Loading";
     if (pendingSelection && findNode(active.root, pendingSelection)) {
       selectedId = pendingSelection;
       pendingSelection = undefined;
@@ -1150,14 +1306,15 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
       for (const control of propertyFields.querySelectorAll<PropertyControl>(
         ".studio-property-control",
       )) {
-        if (control.dataset.dirty !== "true") continue;
         const name = control.dataset.studioProp!;
+        const authored = Object.prototype.hasOwnProperty.call(node.props, name);
+        if (control.dataset.dirty !== "true" && !authored) continue;
         const value = readControl(control);
         if (value === undefined) {
-          if (control.dataset.present === "true") {
+          if (authored) {
             operations.push({ kind: "unset_prop", id: selectedId, name });
           }
-        } else {
+        } else if (JSON.stringify(value) !== JSON.stringify(node.props[name])) {
           operations.push({ kind: "set_prop", id: selectedId, name, value });
         }
       }
@@ -1177,10 +1334,24 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
       return;
     }
     if (!operations.length) {
+      pendingPropertyValues.delete(selectedId);
+      for (const control of propertyFields.querySelectorAll<PropertyControl>(
+        ".studio-property-control[data-dirty='true']",
+      ))
+        control.dataset.dirty = "false";
       showMessage("No property changes to apply.");
       return;
     }
-    void postOperations(operations);
+    const submittedId = selectedId;
+    void postOperations(operations).then((accepted) => {
+      if (!accepted) return;
+      pendingPropertyValues.delete(submittedId);
+      if (selectedId !== submittedId) return;
+      for (const control of propertyFields.querySelectorAll<PropertyControl>(
+        ".studio-property-control[data-dirty='true']",
+      ))
+        control.dataset.dirty = "false";
+    });
   });
 
   applyState.addEventListener("click", () => {
@@ -1264,6 +1435,93 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
     ]);
   });
 
+  moveDown.addEventListener("click", () => {
+    if (!selectedId) return;
+    const location = findLocation(activeDocument()!.root, selectedId);
+    if (
+      !location ||
+      location.index === location.parent.slots[location.slot].length - 1
+    )
+      return;
+    void postOperations([
+      {
+        kind: "move",
+        id: selectedId,
+        parent_id: location.parent.id,
+        slot: location.slot,
+        after_id: location.parent.slots[location.slot][location.index + 1].id,
+      },
+    ]);
+  });
+
+  const duplicateNode = (source: StudioNode): StudioNode => {
+    const ids = new Map<string, string>();
+    let fallbackId = 0;
+    const collect = (node: StudioNode) => {
+      const suffix =
+        globalThis.crypto?.randomUUID?.() ??
+        `${Date.now().toString(36)}-${fallbackId++}`;
+      ids.set(node.id, `${node.id}-copy-${suffix}`);
+      for (const children of Object.values(node.slots))
+        for (const child of children) collect(child);
+    };
+    collect(source);
+    const references = (value: JsonValue): JsonValue => {
+      if (Array.isArray(value)) return value.map(references);
+      if (!value || typeof value !== "object") return value;
+      const mapped = Object.fromEntries(
+        Object.entries(value).map(([name, child]) => [name, references(child)]),
+      ) as Record<string, JsonValue>;
+      if (
+        mapped.ref === "id" &&
+        typeof mapped.id === "string" &&
+        ids.has(mapped.id)
+      )
+        mapped.id = ids.get(mapped.id)!;
+      return mapped;
+    };
+    const clone = (node: StudioNode): StudioNode => ({
+      id: ids.get(node.id)!,
+      tag: node.tag,
+      key: null,
+      props: structuredClone(node.props),
+      bindings: structuredClone(node.bindings),
+      events: references(node.events) as Record<
+        string,
+        Record<string, JsonValue>
+      >,
+      slots: Object.fromEntries(
+        Object.entries(node.slots).map(([slot, children]) => [
+          slot,
+          children.map(clone),
+        ]),
+      ),
+    });
+    return clone(source);
+  };
+
+  duplicate.addEventListener("click", () => {
+    if (!selectedId) return;
+    const active = activeDocument();
+    if (!active) return;
+    const location = findLocation(active.root, selectedId);
+    const selected = findNode(active.root, selectedId);
+    if (!location || !selected) return;
+    const copy = duplicateNode(selected);
+    pendingSelection = copy.id;
+    void postOperations([
+      {
+        kind: "insert",
+        parent_id: location.parent.id,
+        slot: location.slot,
+        after_id: selectedId,
+        node: copy,
+      },
+    ]).then((accepted) => {
+      if (!accepted) pendingSelection = undefined;
+    });
+  });
+
   remove.addEventListener("click", () => {
     if (selectedId) void postOperations([{ kind: "remove", id: selectedId }]);
   });
@@ -1286,8 +1544,9 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
     .then(async (response) => {
       if (!response.ok) throw new Error("Component catalog failed to load.");
       catalog = (await response.json()) as ComponentCatalog;
+      catalogReady = true;
       renderComponentOptions();
-      if (selectedId) select(selectedId);
+      if (state) render();
     })
     .catch((error: unknown) => {
       showMessage(
@@ -1298,9 +1557,36 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
       );
     });
 
+  void fetch(`/api/access?actor_id=${encodeURIComponent(actorId)}`)
+    .then(async (response) => {
+      if (!response.ok) throw new Error("Studio access lookup failed.");
+      const access = (await response.json()) as {
+        role: "read" | "edit" | "admin";
+      };
+      accessRole = access.role;
+      accessReady = true;
+      if (state) render();
+      else configureAccess();
+      void refreshHistory();
+    })
+    .catch((error: unknown) => {
+      showMessage(
+        error instanceof Error ? error.message : "Studio access lookup failed.",
+        true,
+      );
+    });
+
   const client = new transport.Client();
+  client.onConnect(() => void recoverDraft());
   client.onChange((change) => {
     state = transport.fromValue(client.value(change.id)) as StudioState;
+    if (
+      committedRevision !== undefined &&
+      state.revision >= committedRevision
+    ) {
+      draft = undefined;
+      committedRevision = undefined;
+    }
     render();
   });
   const scheme = location.protocol === "https:" ? "wss" : "ws";

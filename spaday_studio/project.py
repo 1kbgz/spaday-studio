@@ -7,7 +7,18 @@ from pathlib import Path
 from pprint import pformat
 from uuid import uuid4
 
+from pydantic import BaseModel, ConfigDict
+
 from .models import StudioDocument, StudioNode
+
+PROJECT_SCHEMA_VERSION = 1
+
+
+class _ProjectEnvelope(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: int
+    document: StudioDocument
 
 
 class ProjectFile:
@@ -18,11 +29,15 @@ class ProjectFile:
 
     def load(self) -> StudioDocument:
         """Load and validate the project document."""
-        return StudioDocument.model_validate_json(self.path.read_text(encoding="utf-8"))
+        envelope = _ProjectEnvelope.model_validate_json(self.path.read_text(encoding="utf-8"))
+        if envelope.schema_version != PROJECT_SCHEMA_VERSION:
+            raise ValueError(f"unsupported Studio project schema version {envelope.schema_version}; expected {PROJECT_SCHEMA_VERSION}")
+        return envelope.document
 
     def save(self, document: StudioDocument) -> None:
         """Atomically replace the project with ``document``."""
-        value = json.dumps(document.model_dump(mode="json"), allow_nan=False, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
+        envelope = {"schema_version": PROJECT_SCHEMA_VERSION, "document": document.model_dump(mode="json")}
+        value = json.dumps(envelope, allow_nan=False, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
         _atomic_write(self.path, value)
 
 
@@ -115,4 +130,4 @@ def _atomic_write(path: Path, value: str) -> None:
         temporary.unlink(missing_ok=True)
 
 
-__all__ = ["ProjectFile", "export_python"]
+__all__ = ["PROJECT_SCHEMA_VERSION", "ProjectFile", "export_python"]

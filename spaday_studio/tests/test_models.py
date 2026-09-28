@@ -184,6 +184,24 @@ def test_unset_operations_remove_authored_behavior_and_state():
     assert edited.state == {}
 
 
+def test_document_title_and_node_key_have_semantic_operations():
+    edited = apply_operations(
+        document(),
+        parse_operations(
+            [
+                {"kind": "set_title", "value": "Renamed"},
+                {"kind": "set_key", "id": "a", "value": "stable-a"},
+            ]
+        ),
+    )
+
+    assert edited.title == "Renamed"
+    assert edited.root.slots["default"][0].key == "stable-a"
+
+    cleared = apply_operations(edited, parse_operations([{"kind": "unset_key", "id": "a"}]))
+    assert cleared.root.slots["default"][0].key is None
+
+
 @pytest.mark.parametrize(
     ("operation", "message"),
     [

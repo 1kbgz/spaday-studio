@@ -2,6 +2,7 @@ from pathlib import Path
 
 from spaday import ComponentPackage
 
+from .access import StudioAccessContext, StudioAuthorizer, StudioRole
 from .catalog import ComponentCatalog, ComponentSchema, ComponentSummary, PropertySchema, discover_catalog
 from .models import (
     InsertNode,
@@ -9,14 +10,20 @@ from .models import (
     RemoveNode,
     SetBinding,
     SetEvent,
+    SetKey,
     SetProp,
     SetState,
+    SetTitle,
     StudioDocument,
     StudioNode,
     UnsetBinding,
     UnsetEvent,
+    UnsetKey,
     UnsetProp,
     UnsetState,
+    document_schema,
+    operation_batch_schema,
+    operation_schema,
 )
 from .project import ProjectFile, export_python
 from .session import PreviewConflict, RevisionConflict, StudioSession, StudioState
@@ -42,17 +49,26 @@ __all__ = [
     "RevisionConflict",
     "SetBinding",
     "SetEvent",
+    "SetKey",
     "SetProp",
     "SetState",
+    "SetTitle",
+    "StudioAccessContext",
+    "StudioAuthorizer",
     "StudioDocument",
     "StudioNode",
+    "StudioRole",
     "StudioSession",
     "StudioState",
     "UnsetBinding",
     "UnsetEvent",
+    "UnsetKey",
     "UnsetProp",
     "UnsetState",
     "discover_catalog",
+    "document_schema",
     "export_python",
+    "operation_batch_schema",
+    "operation_schema",
     "package",
 ]
