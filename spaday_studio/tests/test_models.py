@@ -160,3 +160,62 @@ def test_document_rejects_event_targets_that_are_not_in_the_tree():
                 },
             ),
         )
+
+
+def test_unset_operations_remove_authored_behavior_and_state():
+    source = document()
+    source.root.slots["default"][0].bindings["textContent"] = {"field": "query", "mode": "one-way"}
+    source.root.slots["default"][0].events["click"] = {"kind": "toggle-field", "field": "open"}
+    source.state = {"query": "hello"}
+    operations = parse_operations(
+        [
+            {"kind": "unset_prop", "id": "a", "name": "textContent"},
+            {"kind": "unset_binding", "id": "a", "name": "textContent"},
+            {"kind": "unset_event", "id": "a", "name": "click"},
+            {"kind": "unset_state", "name": "query"},
+        ]
+    )
+
+    edited = apply_operations(source, operations)
+
+    assert edited.root.slots["default"][0].props == {}
+    assert edited.root.slots["default"][0].bindings == {}
+    assert edited.root.slots["default"][0].events == {}
+    assert edited.state == {}
+
+
+@pytest.mark.parametrize(
+    ("operation", "message"),
+    [
+        (
+            {"kind": "insert", "parent_id": "root", "index": 0, "before_id": "a", "node": {"id": "c", "tag": "p"}},
+            "insert accepts only one",
+        ),
+        (
+            {"kind": "move", "id": "a", "parent_id": "root", "index": 0, "after_id": "b"},
+            "move accepts only one",
+        ),
+        (
+            {"kind": "move", "id": "a", "parent_id": "root", "before_id": "a"},
+            "relative to itself",
+        ),
+    ],
+)
+def test_structural_operations_reject_ambiguous_positions(operation, message):
+    with pytest.raises(ValidationError, match=message):
+        parse_operations([operation])
+
+
+@pytest.mark.parametrize(
+    ("operation", "error"),
+    [
+        ({"kind": "remove", "id": "root"}, ValueError),
+        ({"kind": "move", "id": "root", "parent_id": "root"}, ValueError),
+        ({"kind": "move", "id": "missing", "parent_id": "root"}, KeyError),
+        ({"kind": "insert", "parent_id": "root", "index": 9, "node": {"id": "c", "tag": "p"}}, IndexError),
+        ({"kind": "insert", "parent_id": "root", "after_id": "missing", "node": {"id": "c", "tag": "p"}}, KeyError),
+    ],
+)
+def test_structural_operations_reject_missing_or_invalid_targets(operation, error):
+    with pytest.raises(error):
+        apply_operations(document(), parse_operations([operation]))

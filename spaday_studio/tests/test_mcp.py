@@ -64,3 +64,45 @@ def test_mcp_exposes_compact_component_lists_and_individual_schemas():
     assert any(component["tag"] == "button" for component in listed["components"])
     assert button["package"] == "html"
     assert any(prop["name"] == "disabled" and prop["kind"] == "boolean" for prop in button["props"])
+
+
+def test_mcp_resources_and_mutating_tools_follow_the_draft_lifecycle():
+    async def lifecycle() -> None:
+        server = create_mcp(StudioSession(document.model_copy(deep=True)))
+        assert await server.read_resource("spaday://project")
+        assert await server.read_resource("spaday://catalog")
+
+        operation = {"kind": "set_prop", "id": "headline", "name": "textContent", "value": "Draft"}
+        preview = await server.call_tool("preview_operations", {"expected_revision": 0, "operations": [operation]})
+        preview_id = preview.structured_content["preview_id"]
+        updated = await server.call_tool(
+            "preview_operations",
+            {
+                "expected_revision": 0,
+                "preview_id": preview_id,
+                "operations": [{"kind": "set_prop", "id": "app", "name": "title", "value": "Updated"}],
+            },
+        )
+        assert updated.structured_content["document"]["root"]["props"]["title"] == "Updated"
+        committed = await server.call_tool("commit_preview", {"preview_id": preview_id})
+        assert committed.structured_content["revision"] == 1
+
+        applied = await server.call_tool(
+            "apply_operations",
+            {
+                "expected_revision": 1,
+                "operations": [{"kind": "set_state", "name": "ready", "value": True}],
+            },
+        )
+        assert applied.structured_content["revision"] == 2
+        undone = await server.call_tool("undo", {"expected_revision": 2})
+        assert undone.structured_content["revision"] == 3
+
+        discarded = await server.call_tool(
+            "preview_operations",
+            {"expected_revision": 3, "operations": [operation]},
+        )
+        result = await server.call_tool("discard_preview", {"preview_id": discarded.structured_content["preview_id"]})
+        assert result.structured_content["revision"] == 3
+
+    asyncio.run(lifecycle())

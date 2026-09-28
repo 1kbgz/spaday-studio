@@ -173,3 +173,41 @@ def test_private_draft_endpoints_validate_preview_and_commit():
     assert canonical.json()["revision"] == 0
     assert committed.json()["revision"] == 1
     assert set(schemas.json()) == {"action", "binding", "expr"}
+
+
+def test_private_draft_update_discard_and_error_endpoints():
+    app = create_app()
+    operation = {"kind": "set_prop", "id": "headline", "name": "textContent", "value": "Private"}
+
+    with TestClient(app) as client:
+        malformed = client.post("/api/operations", json={})
+        preview = client.post(
+            "/api/drafts",
+            json={"expected_revision": 0, "actor_id": "browser-a", "operations": [operation]},
+        ).json()
+        updated = client.post(
+            "/api/drafts",
+            json={
+                "expected_revision": 0,
+                "preview_id": preview["preview_id"],
+                "actor_id": "browser-a",
+                "operations": [{"kind": "set_state", "name": "ready", "value": True}],
+            },
+        )
+        wrong_owner = client.post(
+            f"/api/drafts/{preview['preview_id']}/commit",
+            json={"actor_id": "browser-b"},
+        )
+        discarded = client.post(
+            f"/api/drafts/{preview['preview_id']}/discard",
+            json={"actor_id": "browser-a"},
+        )
+        with client.websocket_connect("/ws/buffers/browser-a") as websocket:
+            assert websocket.receive_json()["t"] == "crdt_snapshot"
+
+    assert malformed.status_code == 422
+    assert updated.status_code == 200
+    assert updated.json()["document"]["state"]["ready"] is True
+    assert wrong_owner.status_code == 409
+    assert discarded.status_code == 200
+    assert discarded.json()["revision"] == 0
