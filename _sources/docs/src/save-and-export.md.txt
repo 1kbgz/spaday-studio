@@ -18,7 +18,8 @@ Uncommitted previews are never written.
 ## Export Python in the browser
 
 Click **Export Python** in the Studio header. The browser downloads `spaday_app.py`, which exports a
-`page()` function returning the accepted component tree.
+`INITIAL_STATE` value and a `page()` function returning the accepted component tree, including validated
+bindings and event actions.
 
 To fetch the same source directly, request:
 

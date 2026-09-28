@@ -269,11 +269,14 @@
 <span class="p">}</span>
 </pre></div>
 </div>
-<p>The browser changes immediately and shows <code class="docutils literal notranslate"><span class="pre">Preview</span> <span class="pre">draft</span></code>, while its canonical revision remains
-unchanged. Copy the returned <code class="docutils literal notranslate"><span class="pre">preview_id</span></code> and call <code class="docutils literal notranslate"><span class="pre">commit_preview</span></code> to accept it. Call
-<code class="docutils literal notranslate"><span class="pre">discard_preview</span></code> instead to restore the canonical canvas without advancing its revision.</p>
-<p>If another canonical edit changes the revision first, create a new preview against the new revision.
-Studio rejects stale expected revisions rather than silently overwriting them.</p>
+<p>The result contains the private draft document, a component-tree patch, its base revision, and a
+<code class="docutils literal notranslate"><span class="pre">preview_id</span></code>. The shared browser canvas and canonical revision remain unchanged. Pass the same <code class="docutils literal notranslate"><span class="pre">actor_id</span></code>
+and <code class="docutils literal notranslate"><span class="pre">preview_id</span></code> to another <code class="docutils literal notranslate"><span class="pre">preview_operations</span></code> call to append operations. Call <code class="docutils literal notranslate"><span class="pre">commit_preview</span></code> to accept
+the draft or <code class="docutils literal notranslate"><span class="pre">discard_preview</span></code> to remove it.</p>
+<p>If another client commits first, Studio rebases changes to different fields. Independent appends and
+anchor-based placements also rebase while their parent and anchor remain valid. Edits to the same property,
+binding, event, state field, or node return a conflict naming the overlapping target. Numeric positions also
+conflict after an intervening structural edit because their index is no longer stable.</p>
 </section>
 
         </article>

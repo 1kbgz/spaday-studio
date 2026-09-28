@@ -259,7 +259,8 @@ Uncommitted previews are never written.</p>
 <section id="export-python-in-the-browser">
 <h2>Export Python in the browser<a class="headerlink" href="#export-python-in-the-browser" title="Link to this heading">¶</a></h2>
 <p>Click <strong>Export Python</strong> in the Studio header. The browser downloads <code class="docutils literal notranslate"><span class="pre">spaday_app.py</span></code>, which exports a
-<code class="docutils literal notranslate"><span class="pre">page()</span></code> function returning the accepted component tree.</p>
+<code class="docutils literal notranslate"><span class="pre">INITIAL_STATE</span></code> value and a <code class="docutils literal notranslate"><span class="pre">page()</span></code> function returning the accepted component tree, including validated
+bindings and event actions.</p>
 <p>To fetch the same source directly, request:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>curl<span class="w"> </span>--fail<span class="w"> </span>http://127.0.0.1:8020/api/export/python<span class="w"> </span>--output<span class="w"> </span>spaday_app.py
 </pre></div>

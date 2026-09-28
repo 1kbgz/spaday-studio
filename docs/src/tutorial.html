@@ -272,15 +272,29 @@ Studio creates <code class="docutils literal notranslate"><span class="pre">orbi
 <div class="highlight-text notranslate"><div class="highlight"><pre><span></span>Ship the interface while it is running.
 </pre></div>
 </div>
-<p>Click <strong>Apply properties</strong>. The revision changes to <code class="docutils literal notranslate"><span class="pre">Revision</span> <span class="pre">1</span></code>, and the live headline changes without the
-canvas flashing or reloading.</p>
+<p>Click <strong>Preview changes</strong>. The headline changes, but the header still shows <code class="docutils literal notranslate"><span class="pre">Revision</span> <span class="pre">0</span></code> and marks the
+canvas as a private draft. Click <strong>Commit</strong>. The header changes to <code class="docutils literal notranslate"><span class="pre">Revision</span> <span class="pre">1</span></code>; unaffected canvas elements
+keep their DOM identity throughout both updates.</p>
 </section>
 <section id="make-a-structural-edit">
 <h2>Make a structural edit<a class="headerlink" href="#make-a-structural-edit" title="Link to this heading">¶</a></h2>
 <p>Select <code class="docutils literal notranslate"><span class="pre">main</span> <span class="pre">·</span> <span class="pre">app</span></code> at the top of the component tree. Choose <code class="docutils literal notranslate"><span class="pre">p</span> <span class="pre">·</span> <span class="pre">&lt;p&gt;</span></code> under the <code class="docutils literal notranslate"><span class="pre">html</span></code> catalog and click
-<strong>Add component</strong>. A new paragraph appears at the bottom of the canvas, and the revision advances again.</p>
-<p>Select the new paragraph and click <strong>Move up</strong> or <strong>Remove</strong>. Each accepted operation arrives as a new
-authoritative transports revision and is reconciled through spaday’s keyed tree patch.</p>
+<strong>Add component</strong>. Choose the destination slot when the selected component exposes named slots. A new
+paragraph appears at the bottom of the draft canvas. Click <strong>Commit</strong> to advance the revision.</p>
+<p>Select the new paragraph and click <strong>Move up</strong> or <strong>Remove</strong>. You can stack several operations in the same
+private draft before committing it. Each accepted document arrives as a new authoritative transports
+revision and is reconciled through Spaday’s keyed tree patch.</p>
+</section>
+<section id="add-runtime-behavior">
+<h2>Add runtime behavior<a class="headerlink" href="#add-runtime-behavior" title="Link to this heading">¶</a></h2>
+<p>Select a component and expand <strong>Bindings</strong> or <strong>Events</strong>. Add a direct field binding, field toggle, or
+field assignment for common cases. Open <strong>Advanced JSON</strong> for computed bindings, composed actions, and the
+complete wire surface. The JSON editors use transports’ character-level sequence CRDT. Another Studio tab
+on the same revision sees edits and cursor positions as they happen. Invalid intermediate JSON stays in the
+buffer and cannot enter the project document.</p>
+<p>Use <strong>Runtime state</strong> for the initial Store fields referenced by bindings and actions. <strong>Preview state</strong>
+validates the JSON and stages semantic <code class="docutils literal notranslate"><span class="pre">set_state</span></code> and <code class="docutils literal notranslate"><span class="pre">unset_state</span></code> operations. The canvas keeps one Store
+instance while the tree changes, so two-way bindings and actions can update it normally.</p>
 </section>
 <section id="export-the-accepted-application">
 <h2>Export the accepted application<a class="headerlink" href="#export-the-accepted-application" title="Link to this heading">¶</a></h2>
@@ -353,6 +367,7 @@ stopping and restarting the same command restores the project.</p>
 <li><a class="reference internal" href="#start-studio">Start Studio</a></li>
 <li><a class="reference internal" href="#select-and-edit-the-headline">Select and edit the headline</a></li>
 <li><a class="reference internal" href="#make-a-structural-edit">Make a structural edit</a></li>
+<li><a class="reference internal" href="#add-runtime-behavior">Add runtime behavior</a></li>
 <li><a class="reference internal" href="#export-the-accepted-application">Export the accepted application</a></li>
 </ul>
 </li>

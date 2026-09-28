@@ -243,7 +243,9 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Annotated</span><span class="p">,</span> <span class="n">Literal</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">pydantic</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseModel</span><span class="p">,</span> <span class="n">ConfigDict</span><span class="p">,</span> <span class="n">Field</span><span class="p">,</span> <span class="n">JsonValue</span><span class="p">,</span> <span class="n">TypeAdapter</span><span class="p">,</span> <span class="n">field_validator</span><span class="p">,</span> <span class="n">model_validator</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">spaday</span><span class="w"> </span><span class="kn">import</span> <span class="n">Component</span><span class="p">,</span> <span class="n">element</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">spaday</span><span class="w"> </span><span class="kn">import</span> <span class="n">Component</span><span class="p">,</span> <span class="n">element</span><span class="p">,</span> <span class="n">validate_action</span><span class="p">,</span> <span class="n">validate_binding</span>
+
+<span class="n">WireObject</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">JsonValue</span><span class="p">]</span>
 
 
 <div class="viewcode-block" id="StudioNode">
@@ -257,6 +259,8 @@
     <span class="n">tag</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">min_length</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
     <span class="n">key</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="n">props</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">JsonValue</span><span class="p">]</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span>
+    <span class="n">bindings</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">WireObject</span><span class="p">]</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span>
+    <span class="n">events</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">WireObject</span><span class="p">]</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span>
     <span class="n">slots</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="n">StudioNode</span><span class="p">]]</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span>
 
     <span class="nd">@field_validator</span><span class="p">(</span><span class="s2">"tag"</span><span class="p">)</span>
@@ -288,12 +292,26 @@
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"a component with textContent cannot also have child nodes"</span><span class="p">)</span>
         <span class="k">return</span> <span class="bp">self</span>
 
+    <span class="nd">@field_validator</span><span class="p">(</span><span class="s2">"bindings"</span><span class="p">)</span>
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">valid_bindings</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">value</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">WireObject</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">WireObject</span><span class="p">]:</span>
+        <span class="k">return</span> <span class="p">{</span><span class="n">name</span><span class="p">:</span> <span class="n">validate_binding</span><span class="p">(</span><span class="n">binding</span><span class="p">)</span> <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">binding</span> <span class="ow">in</span> <span class="n">value</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
+
+    <span class="nd">@field_validator</span><span class="p">(</span><span class="s2">"events"</span><span class="p">)</span>
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">valid_events</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">value</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">WireObject</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">WireObject</span><span class="p">]:</span>
+        <span class="k">return</span> <span class="p">{</span><span class="n">name</span><span class="p">:</span> <span class="n">validate_action</span><span class="p">(</span><span class="n">action</span><span class="p">)</span> <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">action</span> <span class="ow">in</span> <span class="n">value</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
+
 <div class="viewcode-block" id="StudioNode.component">
 <a class="viewcode-back" href="../../docs/src/reference.html#spaday_studio.StudioNode.component">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">component</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Component</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">"""Compile this document node to an ordinary spaday component."""</span>
         <span class="n">component</span> <span class="o">=</span> <span class="n">element</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tag</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">key</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">id</span><span class="p">,</span> <span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">props</span><span class="p">)</span>
         <span class="n">component</span><span class="o">.</span><span class="n">prop</span><span class="p">(</span><span class="s2">"data-spaday-studio-id"</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">id</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">prop</span><span class="p">,</span> <span class="n">binding</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">bindings</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">component</span><span class="o">.</span><span class="n">bind_wire</span><span class="p">(</span><span class="n">prop</span><span class="p">,</span> <span class="n">binding</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">event</span><span class="p">,</span> <span class="n">action</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">events</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">component</span><span class="o">.</span><span class="n">on_wire</span><span class="p">(</span><span class="n">event</span><span class="p">,</span> <span class="n">action</span><span class="p">)</span>
         <span class="k">for</span> <span class="n">slot</span><span class="p">,</span> <span class="n">children</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">slots</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
             <span class="k">for</span> <span class="n">child</span> <span class="ow">in</span> <span class="n">children</span><span class="p">:</span>
                 <span class="n">component</span><span class="o">.</span><span class="n">child_in</span><span class="p">(</span><span class="n">slot</span><span class="p">,</span> <span class="n">child</span><span class="o">.</span><span class="n">component</span><span class="p">())</span>
@@ -310,6 +328,7 @@
     <span class="n">model_config</span> <span class="o">=</span> <span class="n">ConfigDict</span><span class="p">(</span><span class="n">extra</span><span class="o">=</span><span class="s2">"forbid"</span><span class="p">)</span>
 
     <span class="n">title</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">state</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">JsonValue</span><span class="p">]</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span>
     <span class="n">root</span><span class="p">:</span> <span class="n">StudioNode</span>
 
     <span class="nd">@model_validator</span><span class="p">(</span><span class="n">mode</span><span class="o">=</span><span class="s2">"after"</span><span class="p">)</span>
@@ -329,6 +348,17 @@
         <span class="n">visit</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">root</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">duplicate</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"duplicate Studio node id </span><span class="si">{</span><span class="n">duplicate</span><span class="si">!r}</span><span class="s2">"</span><span class="p">)</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">validate_refs</span><span class="p">(</span><span class="n">node</span><span class="p">:</span> <span class="n">StudioNode</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">event</span><span class="p">,</span> <span class="n">action</span> <span class="ow">in</span> <span class="n">node</span><span class="o">.</span><span class="n">events</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="k">for</span> <span class="n">reference</span> <span class="ow">in</span> <span class="n">_id_references</span><span class="p">(</span><span class="n">action</span><span class="p">):</span>
+                    <span class="k">if</span> <span class="n">reference</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">seen</span><span class="p">:</span>
+                        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"component </span><span class="si">{</span><span class="n">node</span><span class="o">.</span><span class="n">id</span><span class="si">!r}</span><span class="s2"> event </span><span class="si">{</span><span class="n">event</span><span class="si">!r}</span><span class="s2"> references missing component </span><span class="si">{</span><span class="n">reference</span><span class="si">!r}</span><span class="s2">"</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">children</span> <span class="ow">in</span> <span class="n">node</span><span class="o">.</span><span class="n">slots</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+                <span class="k">for</span> <span class="n">child</span> <span class="ow">in</span> <span class="n">children</span><span class="p">:</span>
+                    <span class="n">validate_refs</span><span class="p">(</span><span class="n">child</span><span class="p">)</span>
+
+        <span class="n">validate_refs</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">root</span><span class="p">)</span>
         <span class="k">return</span> <span class="bp">self</span>
 
 <div class="viewcode-block" id="StudioDocument.component">
@@ -357,14 +387,81 @@
     <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
 
 
+<span class="k">class</span><span class="w"> </span><span class="nc">SetBinding</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+    <span class="n">model_config</span> <span class="o">=</span> <span class="n">ConfigDict</span><span class="p">(</span><span class="n">extra</span><span class="o">=</span><span class="s2">"forbid"</span><span class="p">)</span>
+
+    <span class="n">kind</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">"set_binding"</span><span class="p">]</span>
+    <span class="nb">id</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">binding</span><span class="p">:</span> <span class="n">WireObject</span>
+
+    <span class="nd">@field_validator</span><span class="p">(</span><span class="s2">"binding"</span><span class="p">)</span>
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">valid_binding</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">value</span><span class="p">:</span> <span class="n">WireObject</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">WireObject</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">validate_binding</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">UnsetBinding</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+    <span class="n">model_config</span> <span class="o">=</span> <span class="n">ConfigDict</span><span class="p">(</span><span class="n">extra</span><span class="o">=</span><span class="s2">"forbid"</span><span class="p">)</span>
+
+    <span class="n">kind</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">"unset_binding"</span><span class="p">]</span>
+    <span class="nb">id</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">SetEvent</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+    <span class="n">model_config</span> <span class="o">=</span> <span class="n">ConfigDict</span><span class="p">(</span><span class="n">extra</span><span class="o">=</span><span class="s2">"forbid"</span><span class="p">)</span>
+
+    <span class="n">kind</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">"set_event"</span><span class="p">]</span>
+    <span class="nb">id</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">action</span><span class="p">:</span> <span class="n">WireObject</span>
+
+    <span class="nd">@field_validator</span><span class="p">(</span><span class="s2">"action"</span><span class="p">)</span>
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">valid_action</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">value</span><span class="p">:</span> <span class="n">WireObject</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">WireObject</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">validate_action</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">UnsetEvent</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+    <span class="n">model_config</span> <span class="o">=</span> <span class="n">ConfigDict</span><span class="p">(</span><span class="n">extra</span><span class="o">=</span><span class="s2">"forbid"</span><span class="p">)</span>
+
+    <span class="n">kind</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">"unset_event"</span><span class="p">]</span>
+    <span class="nb">id</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">SetState</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+    <span class="n">model_config</span> <span class="o">=</span> <span class="n">ConfigDict</span><span class="p">(</span><span class="n">extra</span><span class="o">=</span><span class="s2">"forbid"</span><span class="p">)</span>
+
+    <span class="n">kind</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">"set_state"</span><span class="p">]</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">value</span><span class="p">:</span> <span class="n">JsonValue</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">UnsetState</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+    <span class="n">model_config</span> <span class="o">=</span> <span class="n">ConfigDict</span><span class="p">(</span><span class="n">extra</span><span class="o">=</span><span class="s2">"forbid"</span><span class="p">)</span>
+
+    <span class="n">kind</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">"unset_state"</span><span class="p">]</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
+
+
 <span class="k">class</span><span class="w"> </span><span class="nc">InsertNode</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
     <span class="n">model_config</span> <span class="o">=</span> <span class="n">ConfigDict</span><span class="p">(</span><span class="n">extra</span><span class="o">=</span><span class="s2">"forbid"</span><span class="p">)</span>
 
     <span class="n">kind</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">"insert"</span><span class="p">]</span>
     <span class="n">parent_id</span><span class="p">:</span> <span class="nb">str</span>
     <span class="n">slot</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"default"</span>
-    <span class="n">index</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">ge</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+    <span class="n">index</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">ge</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+    <span class="n">before_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">after_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="n">node</span><span class="p">:</span> <span class="n">StudioNode</span>
+
+    <span class="nd">@model_validator</span><span class="p">(</span><span class="n">mode</span><span class="o">=</span><span class="s2">"after"</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">one_position</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">InsertNode</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">sum</span><span class="p">(</span><span class="n">value</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">for</span> <span class="n">value</span> <span class="ow">in</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">index</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">before_id</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">after_id</span><span class="p">))</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"insert accepts only one of index, before_id, or after_id"</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span>
 
 
 <span class="k">class</span><span class="w"> </span><span class="nc">MoveNode</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
@@ -374,7 +471,17 @@
     <span class="nb">id</span><span class="p">:</span> <span class="nb">str</span>
     <span class="n">parent_id</span><span class="p">:</span> <span class="nb">str</span>
     <span class="n">slot</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"default"</span>
-    <span class="n">index</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">ge</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+    <span class="n">index</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">ge</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+    <span class="n">before_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">after_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="nd">@model_validator</span><span class="p">(</span><span class="n">mode</span><span class="o">=</span><span class="s2">"after"</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">one_position</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">MoveNode</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">sum</span><span class="p">(</span><span class="n">value</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">for</span> <span class="n">value</span> <span class="ow">in</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">index</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">before_id</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">after_id</span><span class="p">))</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"move accepts only one of index, before_id, or after_id"</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">id</span> <span class="ow">in</span> <span class="p">{</span><span class="bp">self</span><span class="o">.</span><span class="n">before_id</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">after_id</span><span class="p">}:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"a node cannot be positioned relative to itself"</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span>
 
 
 <span class="k">class</span><span class="w"> </span><span class="nc">RemoveNode</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
@@ -384,7 +491,10 @@
     <span class="nb">id</span><span class="p">:</span> <span class="nb">str</span>
 
 
-<span class="n">StudioOperation</span> <span class="o">=</span> <span class="n">Annotated</span><span class="p">[</span><span class="n">SetProp</span> <span class="o">|</span> <span class="n">UnsetProp</span> <span class="o">|</span> <span class="n">InsertNode</span> <span class="o">|</span> <span class="n">MoveNode</span> <span class="o">|</span> <span class="n">RemoveNode</span><span class="p">,</span> <span class="n">Field</span><span class="p">(</span><span class="n">discriminator</span><span class="o">=</span><span class="s2">"kind"</span><span class="p">)]</span>
+<span class="n">StudioOperation</span> <span class="o">=</span> <span class="n">Annotated</span><span class="p">[</span>
+    <span class="n">SetProp</span> <span class="o">|</span> <span class="n">UnsetProp</span> <span class="o">|</span> <span class="n">SetBinding</span> <span class="o">|</span> <span class="n">UnsetBinding</span> <span class="o">|</span> <span class="n">SetEvent</span> <span class="o">|</span> <span class="n">UnsetEvent</span> <span class="o">|</span> <span class="n">SetState</span> <span class="o">|</span> <span class="n">UnsetState</span> <span class="o">|</span> <span class="n">InsertNode</span> <span class="o">|</span> <span class="n">MoveNode</span> <span class="o">|</span> <span class="n">RemoveNode</span><span class="p">,</span>
+    <span class="n">Field</span><span class="p">(</span><span class="n">discriminator</span><span class="o">=</span><span class="s2">"kind"</span><span class="p">),</span>
+<span class="p">]</span>
 <span class="n">operations_adapter</span> <span class="o">=</span> <span class="n">TypeAdapter</span><span class="p">(</span><span class="nb">list</span><span class="p">[</span><span class="n">StudioOperation</span><span class="p">])</span>
 
 
@@ -425,12 +535,22 @@
             <span class="n">find_node</span><span class="p">(</span><span class="n">candidate</span><span class="o">.</span><span class="n">root</span><span class="p">,</span> <span class="n">operation</span><span class="o">.</span><span class="n">id</span><span class="p">)</span><span class="o">.</span><span class="n">props</span><span class="p">[</span><span class="n">operation</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">operation</span><span class="o">.</span><span class="n">value</span>
         <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">operation</span><span class="p">,</span> <span class="n">UnsetProp</span><span class="p">):</span>
             <span class="n">find_node</span><span class="p">(</span><span class="n">candidate</span><span class="o">.</span><span class="n">root</span><span class="p">,</span> <span class="n">operation</span><span class="o">.</span><span class="n">id</span><span class="p">)</span><span class="o">.</span><span class="n">props</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">operation</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">operation</span><span class="p">,</span> <span class="n">SetBinding</span><span class="p">):</span>
+            <span class="n">find_node</span><span class="p">(</span><span class="n">candidate</span><span class="o">.</span><span class="n">root</span><span class="p">,</span> <span class="n">operation</span><span class="o">.</span><span class="n">id</span><span class="p">)</span><span class="o">.</span><span class="n">bindings</span><span class="p">[</span><span class="n">operation</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">operation</span><span class="o">.</span><span class="n">binding</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">operation</span><span class="p">,</span> <span class="n">UnsetBinding</span><span class="p">):</span>
+            <span class="n">find_node</span><span class="p">(</span><span class="n">candidate</span><span class="o">.</span><span class="n">root</span><span class="p">,</span> <span class="n">operation</span><span class="o">.</span><span class="n">id</span><span class="p">)</span><span class="o">.</span><span class="n">bindings</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">operation</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">operation</span><span class="p">,</span> <span class="n">SetEvent</span><span class="p">):</span>
+            <span class="n">find_node</span><span class="p">(</span><span class="n">candidate</span><span class="o">.</span><span class="n">root</span><span class="p">,</span> <span class="n">operation</span><span class="o">.</span><span class="n">id</span><span class="p">)</span><span class="o">.</span><span class="n">events</span><span class="p">[</span><span class="n">operation</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">operation</span><span class="o">.</span><span class="n">action</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">operation</span><span class="p">,</span> <span class="n">UnsetEvent</span><span class="p">):</span>
+            <span class="n">find_node</span><span class="p">(</span><span class="n">candidate</span><span class="o">.</span><span class="n">root</span><span class="p">,</span> <span class="n">operation</span><span class="o">.</span><span class="n">id</span><span class="p">)</span><span class="o">.</span><span class="n">events</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">operation</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">operation</span><span class="p">,</span> <span class="n">SetState</span><span class="p">):</span>
+            <span class="n">candidate</span><span class="o">.</span><span class="n">state</span><span class="p">[</span><span class="n">operation</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">operation</span><span class="o">.</span><span class="n">value</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">operation</span><span class="p">,</span> <span class="n">UnsetState</span><span class="p">):</span>
+            <span class="n">candidate</span><span class="o">.</span><span class="n">state</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">operation</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
         <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">operation</span><span class="p">,</span> <span class="n">InsertNode</span><span class="p">):</span>
             <span class="n">parent</span> <span class="o">=</span> <span class="n">find_node</span><span class="p">(</span><span class="n">candidate</span><span class="o">.</span><span class="n">root</span><span class="p">,</span> <span class="n">operation</span><span class="o">.</span><span class="n">parent_id</span><span class="p">)</span>
             <span class="n">children</span> <span class="o">=</span> <span class="n">parent</span><span class="o">.</span><span class="n">slots</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">operation</span><span class="o">.</span><span class="n">slot</span><span class="p">,</span> <span class="p">[])</span>
-            <span class="k">if</span> <span class="n">operation</span><span class="o">.</span><span class="n">index</span> <span class="o">&gt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">children</span><span class="p">):</span>
-                <span class="k">raise</span> <span class="ne">IndexError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"insert index </span><span class="si">{</span><span class="n">operation</span><span class="o">.</span><span class="n">index</span><span class="si">}</span><span class="s2"> exceeds slot length </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">children</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
-            <span class="n">children</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="n">operation</span><span class="o">.</span><span class="n">index</span><span class="p">,</span> <span class="n">operation</span><span class="o">.</span><span class="n">node</span><span class="o">.</span><span class="n">model_copy</span><span class="p">(</span><span class="n">deep</span><span class="o">=</span><span class="kc">True</span><span class="p">))</span>
+            <span class="n">children</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="n">_position</span><span class="p">(</span><span class="n">children</span><span class="p">,</span> <span class="n">operation</span><span class="p">),</span> <span class="n">operation</span><span class="o">.</span><span class="n">node</span><span class="o">.</span><span class="n">model_copy</span><span class="p">(</span><span class="n">deep</span><span class="o">=</span><span class="kc">True</span><span class="p">))</span>
         <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">operation</span><span class="p">,</span> <span class="n">RemoveNode</span><span class="p">):</span>
             <span class="n">location</span> <span class="o">=</span> <span class="n">_location</span><span class="p">(</span><span class="n">candidate</span><span class="o">.</span><span class="n">root</span><span class="p">,</span> <span class="n">operation</span><span class="o">.</span><span class="n">id</span><span class="p">)</span>
             <span class="k">if</span> <span class="n">location</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
@@ -449,21 +569,54 @@
             <span class="n">moved</span> <span class="o">=</span> <span class="n">old_parent</span><span class="o">.</span><span class="n">slots</span><span class="p">[</span><span class="n">old_slot</span><span class="p">]</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">old_index</span><span class="p">)</span>
             <span class="n">parent</span> <span class="o">=</span> <span class="n">find_node</span><span class="p">(</span><span class="n">candidate</span><span class="o">.</span><span class="n">root</span><span class="p">,</span> <span class="n">operation</span><span class="o">.</span><span class="n">parent_id</span><span class="p">)</span>
             <span class="n">children</span> <span class="o">=</span> <span class="n">parent</span><span class="o">.</span><span class="n">slots</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">operation</span><span class="o">.</span><span class="n">slot</span><span class="p">,</span> <span class="p">[])</span>
-            <span class="k">if</span> <span class="n">operation</span><span class="o">.</span><span class="n">index</span> <span class="o">&gt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">children</span><span class="p">):</span>
-                <span class="k">raise</span> <span class="ne">IndexError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"move index </span><span class="si">{</span><span class="n">operation</span><span class="o">.</span><span class="n">index</span><span class="si">}</span><span class="s2"> exceeds slot length </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">children</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
-            <span class="n">children</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="n">operation</span><span class="o">.</span><span class="n">index</span><span class="p">,</span> <span class="n">moved</span><span class="p">)</span>
+            <span class="n">children</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="n">_position</span><span class="p">(</span><span class="n">children</span><span class="p">,</span> <span class="n">operation</span><span class="p">),</span> <span class="n">moved</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">StudioDocument</span><span class="o">.</span><span class="n">model_validate</span><span class="p">(</span><span class="n">candidate</span><span class="o">.</span><span class="n">model_dump</span><span class="p">())</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_position</span><span class="p">(</span><span class="n">children</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">StudioNode</span><span class="p">],</span> <span class="n">operation</span><span class="p">:</span> <span class="n">InsertNode</span> <span class="o">|</span> <span class="n">MoveNode</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">operation</span><span class="o">.</span><span class="n">before_id</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">_anchor_index</span><span class="p">(</span><span class="n">children</span><span class="p">,</span> <span class="n">operation</span><span class="o">.</span><span class="n">before_id</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">operation</span><span class="o">.</span><span class="n">after_id</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">_anchor_index</span><span class="p">(</span><span class="n">children</span><span class="p">,</span> <span class="n">operation</span><span class="o">.</span><span class="n">after_id</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span>
+    <span class="n">index</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">children</span><span class="p">)</span> <span class="k">if</span> <span class="n">operation</span><span class="o">.</span><span class="n">index</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">operation</span><span class="o">.</span><span class="n">index</span>
+    <span class="k">if</span> <span class="n">index</span> <span class="o">&gt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">children</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">IndexError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"index </span><span class="si">{</span><span class="n">index</span><span class="si">}</span><span class="s2"> exceeds slot length </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">children</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">index</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_anchor_index</span><span class="p">(</span><span class="n">children</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">StudioNode</span><span class="p">],</span> <span class="n">anchor_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">return</span> <span class="nb">next</span><span class="p">(</span><span class="n">index</span> <span class="k">for</span> <span class="n">index</span><span class="p">,</span> <span class="n">child</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">children</span><span class="p">)</span> <span class="k">if</span> <span class="n">child</span><span class="o">.</span><span class="n">id</span> <span class="o">==</span> <span class="n">anchor_id</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">StopIteration</span> <span class="k">as</span> <span class="n">error</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">KeyError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"slot anchor </span><span class="si">{</span><span class="n">anchor_id</span><span class="si">!r}</span><span class="s2"> does not exist"</span><span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">error</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_id_references</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="n">JsonValue</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+        <span class="n">references</span> <span class="o">=</span> <span class="p">[</span><span class="n">value</span><span class="p">[</span><span class="s2">"id"</span><span class="p">]]</span> <span class="k">if</span> <span class="n">value</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"ref"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"id"</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"id"</span><span class="p">),</span> <span class="nb">str</span><span class="p">)</span> <span class="k">else</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">nested</span> <span class="ow">in</span> <span class="n">value</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+            <span class="n">references</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">_id_references</span><span class="p">(</span><span class="n">nested</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">references</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">reference</span> <span class="k">for</span> <span class="n">nested</span> <span class="ow">in</span> <span class="n">value</span> <span class="k">for</span> <span class="n">reference</span> <span class="ow">in</span> <span class="n">_id_references</span><span class="p">(</span><span class="n">nested</span><span class="p">)]</span>
+    <span class="k">return</span> <span class="p">[]</span>
 
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span>
     <span class="s2">"InsertNode"</span><span class="p">,</span>
     <span class="s2">"MoveNode"</span><span class="p">,</span>
     <span class="s2">"RemoveNode"</span><span class="p">,</span>
+    <span class="s2">"SetBinding"</span><span class="p">,</span>
+    <span class="s2">"SetEvent"</span><span class="p">,</span>
     <span class="s2">"SetProp"</span><span class="p">,</span>
+    <span class="s2">"SetState"</span><span class="p">,</span>
     <span class="s2">"StudioDocument"</span><span class="p">,</span>
     <span class="s2">"StudioNode"</span><span class="p">,</span>
     <span class="s2">"StudioOperation"</span><span class="p">,</span>
+    <span class="s2">"UnsetBinding"</span><span class="p">,</span>
+    <span class="s2">"UnsetEvent"</span><span class="p">,</span>
     <span class="s2">"UnsetProp"</span><span class="p">,</span>
+    <span class="s2">"UnsetState"</span><span class="p">,</span>
     <span class="s2">"apply_operations"</span><span class="p">,</span>
     <span class="s2">"find_node"</span><span class="p">,</span>
     <span class="s2">"parse_operations"</span><span class="p">,</span>

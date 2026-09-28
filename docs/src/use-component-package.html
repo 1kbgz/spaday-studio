@@ -267,10 +267,12 @@ imports schemas and injects browser assets only for selected packages.</p>
 <section id="insert-and-configure-a-component">
 <h2>Insert and configure a component<a class="headerlink" href="#insert-and-configure-a-component" title="Link to this heading">¶</a></h2>
 <p>Select a container in the component tree. In <strong>Insert into selection</strong>, open the <code class="docutils literal notranslate"><span class="pre">webawesome</span></code> group,
-choose <code class="docutils literal notranslate"><span class="pre">WaButton</span> <span class="pre">·</span> <span class="pre">&lt;wa-button&gt;</span></code>, and click <strong>Add component</strong>.</p>
+choose <code class="docutils literal notranslate"><span class="pre">WaButton</span> <span class="pre">·</span> <span class="pre">&lt;wa-button&gt;</span></code>, select one of the parent’s declared named slots, and click <strong>Add
+component</strong>.</p>
 <p>Select the inserted button. Its inspector controls come from the typed Python constructor: booleans use
 true/false selectors, literal choices use enumerated selectors, numbers use number inputs, and structured
-values use JSON text areas. Change a property and click <strong>Apply properties</strong>.</p>
+values use JSON text areas. The catalog also supplies declared event and slot names. Change a property and
+click <strong>Preview changes</strong>, then commit the draft.</p>
 <p>Use <strong>Unset</strong> beside an authored property to remove it instead of assigning another value. Studio submits
 the resulting <code class="docutils literal notranslate"><span class="pre">set_prop</span></code> or <code class="docutils literal notranslate"><span class="pre">unset_prop</span></code> operation through the same revision-checked editing path as a
 built-in HTML component.</p>

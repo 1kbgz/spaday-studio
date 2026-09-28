@@ -33,9 +33,12 @@ Call `preview_operations` with the current revision and this operation:
 }
 ```
 
-The browser changes immediately and shows `Preview draft`, while its canonical revision remains
-unchanged. Copy the returned `preview_id` and call `commit_preview` to accept it. Call
-`discard_preview` instead to restore the canonical canvas without advancing its revision.
+The result contains the private draft document, a component-tree patch, its base revision, and a
+`preview_id`. The shared browser canvas and canonical revision remain unchanged. Pass the same `actor_id`
+and `preview_id` to another `preview_operations` call to append operations. Call `commit_preview` to accept
+the draft or `discard_preview` to remove it.
 
-If another canonical edit changes the revision first, create a new preview against the new revision.
-Studio rejects stale expected revisions rather than silently overwriting them.
+If another client commits first, Studio rebases changes to different fields. Independent appends and
+anchor-based placements also rebase while their parent and anchor remain valid. Edits to the same property,
+binding, event, state field, or node return a conflict naming the overlapping target. Numeric positions also
+conflict after an intervening structural edit because their index is no longer stable.
