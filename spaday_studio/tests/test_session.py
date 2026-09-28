@@ -1,6 +1,8 @@
 import pytest
 
 from spaday_studio import PreviewConflict, RevisionConflict, StudioDocument, StudioNode, StudioSession
+from spaday_studio.models import parse_operations
+from spaday_studio.session import _conflict_reason
 
 
 def session() -> StudioSession:
@@ -61,6 +63,16 @@ def test_undo_restores_previous_document_as_a_new_revision():
 
     assert result["revision"] == 2
     assert studio.state.document.root.slots["default"][0].props["textContent"] == "Before"
+
+
+def test_undo_rejects_an_empty_history_and_another_owners_commit():
+    studio = session()
+    with pytest.raises(ValueError, match="no committed edit"):
+        studio.undo(0)
+
+    studio.apply(0, EDIT, owner="alice")
+    with pytest.raises(RevisionConflict, match="another editor"):
+        studio.undo(1, owner="bob")
 
 
 def test_only_canonical_changes_are_persisted():
@@ -175,3 +187,62 @@ def test_draft_owner_is_enforced_and_updates_append_to_private_document():
     assert updated["document"]["root"]["props"]["title"] == "Draft"
     with pytest.raises(PreviewConflict, match="another editor"):
         studio.discard_preview(preview["preview_id"], owner="bob")
+
+
+def test_new_preview_replaces_the_same_owners_previous_draft():
+    studio = session()
+    first = studio.preview(0, EDIT, owner="alice")
+    second = studio.preview(0, [{"kind": "set_state", "name": "ready", "value": True}], owner="alice")
+
+    with pytest.raises(PreviewConflict, match="draft is missing"):
+        studio.discard_preview(first["preview_id"], owner="alice")
+    assert studio.discard_preview(second["preview_id"], owner="alice")["revision"] == 0
+
+
+@pytest.mark.parametrize(
+    ("draft", "accepted", "message"),
+    [
+        (
+            [{"kind": "set_prop", "id": "message", "name": "title", "value": "draft"}],
+            [{"kind": "remove", "id": "message"}],
+            "target node 'message' was removed",
+        ),
+        (
+            [{"kind": "remove", "id": "message"}],
+            [{"kind": "set_prop", "id": "message", "name": "title", "value": "accepted"}],
+            "draft removes edited node 'message'",
+        ),
+        (
+            [{"kind": "move", "id": "message", "parent_id": "root"}],
+            [{"kind": "move", "id": "message", "parent_id": "root"}],
+            "both drafts move or remove node 'message'",
+        ),
+        (
+            [{"kind": "insert", "parent_id": "root", "index": 0, "node": {"id": "draft", "tag": "p"}}],
+            [{"kind": "remove", "id": "message"}],
+            "numeric placement is stale after a node was removed",
+        ),
+        (
+            [{"kind": "insert", "parent_id": "root", "node": {"id": "same", "tag": "p"}}],
+            [{"kind": "insert", "parent_id": "root", "node": {"id": "same", "tag": "p"}}],
+            "both drafts insert node 'same'",
+        ),
+        (
+            [{"kind": "set_binding", "id": "message", "name": "textContent", "binding": {"field": "a", "mode": "one-way"}}],
+            [{"kind": "unset_binding", "id": "message", "name": "textContent"}],
+            "both drafts edit",
+        ),
+        (
+            [{"kind": "set_event", "id": "message", "name": "click", "action": {"kind": "toggle-field", "field": "a"}}],
+            [{"kind": "unset_event", "id": "message", "name": "click"}],
+            "both drafts edit",
+        ),
+        (
+            [{"kind": "set_state", "name": "ready", "value": True}],
+            [{"kind": "unset_state", "name": "ready"}],
+            "both drafts edit",
+        ),
+    ],
+)
+def test_conflict_reasons_cover_semantic_and_structural_overlap(draft, accepted, message):
+    assert message in _conflict_reason(parse_operations(draft), parse_operations(accepted))
