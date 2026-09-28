@@ -266,9 +266,12 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
   let catalogReady = false;
   let accessReady = false;
   let draftRecoveryReady = false;
+  let bufferReady = false;
   let historyRequest = 0;
   const isReady = () =>
-    Boolean(state && catalogReady && accessReady && draftRecoveryReady);
+    Boolean(
+      state && catalogReady && accessReady && draftRecoveryReady && bufferReady,
+    );
 
   const configureAccess = () => {
     const readOnly = accessRole === "read" || !isReady();
@@ -432,6 +435,8 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
 
   const bufferClient = new transport.Client();
   bufferClient.onChange((change) => {
+    const becameReady = !bufferReady;
+    bufferReady = true;
     bufferModelId = change.id;
     bufferValues = transport.fromValue(bufferClient.value(change.id)) as Record<
       string,
@@ -443,6 +448,7 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
       active && selectedId ? findNode(active.root, selectedId) : undefined;
     if (selected) renderBehaviorControls(selected);
     renderRemoteCursors();
+    if (becameReady && state) render();
   });
   bufferClient.onAwareness(() => renderRemoteCursors());
   const bufferScheme = location.protocol === "https:" ? "wss" : "ws";
