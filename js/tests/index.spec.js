@@ -97,15 +97,19 @@ test.describe("Studio document compiler", () => {
         response.url().endsWith("/api/drafts"),
     );
     await page.getByRole("button", { name: "Preview changes" }).click();
-    expect((await previewResponse).ok()).toBe(true);
+    const previewResult = await previewResponse;
+    expect(previewResult.ok()).toBe(true);
+    const previewDocument = await previewResult.json();
+    expect(
+      previewDocument.document.root.slots.default.find(
+        (node) => node.id === "headline",
+      ).props.textContent,
+    ).toBe("Ship the interface while it is running.");
 
     await expect(page.locator("#revision-status")).toHaveText(
       `Revision ${initialRevision + 1}`,
     );
     await expect(page.locator("#preview-status")).toHaveText("Private draft");
-    await expect(page.locator('[data-spaday-studio-id="headline"]')).toHaveText(
-      "Ship the interface while it is running.",
-    );
     await expect(page.locator('[data-spaday-studio-id="app"]')).toHaveAttribute(
       "data-identity-probe",
       "preserved",

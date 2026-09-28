@@ -692,7 +692,6 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
     control.className = "studio-property-control";
     control.dataset.studioProp = property.name;
     control.dataset.kind = property.kind;
-    control.dataset.present = String(value !== undefined);
     control.dataset.dirty = "false";
     const markDirty = () => {
       control.dataset.dirty = "true";
@@ -703,15 +702,12 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
   };
 
   const renderProperties = (node: StudioNode, preserveDirty = false) => {
-    const dirtyValues = new Map<string, { value: string; present: string }>();
+    const dirtyValues = new Map<string, string>();
     if (preserveDirty) {
       for (const control of propertyFields.querySelectorAll<PropertyControl>(
         ".studio-property-control[data-dirty='true']",
       )) {
-        dirtyValues.set(control.dataset.studioProp!, {
-          value: control.value,
-          present: control.dataset.present!,
-        });
+        dirtyValues.set(control.dataset.studioProp!, control.value);
       }
     }
     const component = schemaFor(node.tag);
@@ -763,9 +759,8 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
       }
       const control = propertyControl(property, value);
       const dirty = dirtyValues.get(property.name);
-      if (dirty) {
-        control.value = dirty.value;
-        control.dataset.present = dirty.present;
+      if (dirty !== undefined) {
+        control.value = dirty;
         control.dataset.dirty = "true";
       }
       field.append(heading, control);
@@ -1291,14 +1286,15 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
       for (const control of propertyFields.querySelectorAll<PropertyControl>(
         ".studio-property-control",
       )) {
-        if (control.dataset.dirty !== "true") continue;
         const name = control.dataset.studioProp!;
+        const authored = Object.prototype.hasOwnProperty.call(node.props, name);
+        if (control.dataset.dirty !== "true" && !authored) continue;
         const value = readControl(control);
         if (value === undefined) {
-          if (control.dataset.present === "true") {
+          if (authored) {
             operations.push({ kind: "unset_prop", id: selectedId, name });
           }
-        } else {
+        } else if (JSON.stringify(value) !== JSON.stringify(node.props[name])) {
           operations.push({ kind: "set_prop", id: selectedId, name, value });
         }
       }
