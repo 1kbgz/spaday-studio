@@ -50,6 +50,10 @@ Select the new paragraph and click **Move up** or **Remove**. You can stack seve
 private draft before committing it. Each accepted document arrives as a new authoritative transports
 revision and is reconciled through Spaday's keyed tree patch.
 
+Use **Move down** to restore its position or **Duplicate** to copy the selected subtree with new Studio IDs.
+After a commit, **Undo** and **Redo** create new authoritative revisions. Reload the browser while a draft is
+open to restore that actor's private preview.
+
 ## Add runtime behavior
 
 Select a component and expand **Bindings** or **Events**. Add a direct field binding, field toggle, or

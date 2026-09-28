@@ -200,6 +200,7 @@
 <li class="toctree-l1"><a class="reference internal" href="../../docs/src/tutorial.html">Edit a live spaday application</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../docs/src/how-to.html">How to preview an edit through MCP</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../docs/src/save-and-export.html">Save and export a Studio project</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../docs/src/access-control.html">Set Studio access roles</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../docs/src/use-component-package.html">Use an installed component package</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../docs/src/reference.html">Studio pilot reference</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../docs/src/explanation.html">Why Studio edits a structured document</a></li>
@@ -370,6 +371,28 @@
 
 
 
+<span class="k">class</span><span class="w"> </span><span class="nc">SetTitle</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+    <span class="n">model_config</span> <span class="o">=</span> <span class="n">ConfigDict</span><span class="p">(</span><span class="n">extra</span><span class="o">=</span><span class="s2">"forbid"</span><span class="p">)</span>
+
+    <span class="n">kind</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">"set_title"</span><span class="p">]</span>
+    <span class="n">value</span><span class="p">:</span> <span class="nb">str</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">SetKey</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+    <span class="n">model_config</span> <span class="o">=</span> <span class="n">ConfigDict</span><span class="p">(</span><span class="n">extra</span><span class="o">=</span><span class="s2">"forbid"</span><span class="p">)</span>
+
+    <span class="n">kind</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">"set_key"</span><span class="p">]</span>
+    <span class="nb">id</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">value</span><span class="p">:</span> <span class="nb">str</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">UnsetKey</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+    <span class="n">model_config</span> <span class="o">=</span> <span class="n">ConfigDict</span><span class="p">(</span><span class="n">extra</span><span class="o">=</span><span class="s2">"forbid"</span><span class="p">)</span>
+
+    <span class="n">kind</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">"unset_key"</span><span class="p">]</span>
+    <span class="nb">id</span><span class="p">:</span> <span class="nb">str</span>
+
+
 <span class="k">class</span><span class="w"> </span><span class="nc">SetProp</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
     <span class="n">model_config</span> <span class="o">=</span> <span class="n">ConfigDict</span><span class="p">(</span><span class="n">extra</span><span class="o">=</span><span class="s2">"forbid"</span><span class="p">)</span>
 
@@ -492,15 +515,53 @@
 
 
 <span class="n">StudioOperation</span> <span class="o">=</span> <span class="n">Annotated</span><span class="p">[</span>
-    <span class="n">SetProp</span> <span class="o">|</span> <span class="n">UnsetProp</span> <span class="o">|</span> <span class="n">SetBinding</span> <span class="o">|</span> <span class="n">UnsetBinding</span> <span class="o">|</span> <span class="n">SetEvent</span> <span class="o">|</span> <span class="n">UnsetEvent</span> <span class="o">|</span> <span class="n">SetState</span> <span class="o">|</span> <span class="n">UnsetState</span> <span class="o">|</span> <span class="n">InsertNode</span> <span class="o">|</span> <span class="n">MoveNode</span> <span class="o">|</span> <span class="n">RemoveNode</span><span class="p">,</span>
+    <span class="n">SetTitle</span>
+    <span class="o">|</span> <span class="n">SetKey</span>
+    <span class="o">|</span> <span class="n">UnsetKey</span>
+    <span class="o">|</span> <span class="n">SetProp</span>
+    <span class="o">|</span> <span class="n">UnsetProp</span>
+    <span class="o">|</span> <span class="n">SetBinding</span>
+    <span class="o">|</span> <span class="n">UnsetBinding</span>
+    <span class="o">|</span> <span class="n">SetEvent</span>
+    <span class="o">|</span> <span class="n">UnsetEvent</span>
+    <span class="o">|</span> <span class="n">SetState</span>
+    <span class="o">|</span> <span class="n">UnsetState</span>
+    <span class="o">|</span> <span class="n">InsertNode</span>
+    <span class="o">|</span> <span class="n">MoveNode</span>
+    <span class="o">|</span> <span class="n">RemoveNode</span><span class="p">,</span>
     <span class="n">Field</span><span class="p">(</span><span class="n">discriminator</span><span class="o">=</span><span class="s2">"kind"</span><span class="p">),</span>
 <span class="p">]</span>
+<span class="n">operation_adapter</span> <span class="o">=</span> <span class="n">TypeAdapter</span><span class="p">(</span><span class="n">StudioOperation</span><span class="p">)</span>
 <span class="n">operations_adapter</span> <span class="o">=</span> <span class="n">TypeAdapter</span><span class="p">(</span><span class="nb">list</span><span class="p">[</span><span class="n">StudioOperation</span><span class="p">])</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">parse_operations</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="nb">object</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">StudioOperation</span><span class="p">]:</span>
 <span class="w">    </span><span class="sd">"""Validate a JSON-compatible list of semantic edit operations."""</span>
     <span class="k">return</span> <span class="n">operations_adapter</span><span class="o">.</span><span class="n">validate_python</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="document_schema">
+<a class="viewcode-back" href="../../docs/src/reference.html#spaday_studio.document_schema">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">document_schema</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Return the public JSON Schema for a Studio document."""</span>
+    <span class="k">return</span> <span class="n">StudioDocument</span><span class="o">.</span><span class="n">model_json_schema</span><span class="p">()</span></div>
+
+
+
+<div class="viewcode-block" id="operation_schema">
+<a class="viewcode-back" href="../../docs/src/reference.html#spaday_studio.operation_schema">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">operation_schema</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Return the public JSON Schema for one Studio operation."""</span>
+    <span class="k">return</span> <span class="n">operation_adapter</span><span class="o">.</span><span class="n">json_schema</span><span class="p">()</span></div>
+
+
+
+<div class="viewcode-block" id="operation_batch_schema">
+<a class="viewcode-back" href="../../docs/src/reference.html#spaday_studio.operation_batch_schema">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">operation_batch_schema</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Return the public JSON Schema for an atomic Studio operation batch."""</span>
+    <span class="k">return</span> <span class="n">operations_adapter</span><span class="o">.</span><span class="n">json_schema</span><span class="p">()</span></div>
+
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">find_node</span><span class="p">(</span><span class="n">root</span><span class="p">:</span> <span class="n">StudioNode</span><span class="p">,</span> <span class="n">node_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">StudioNode</span><span class="p">:</span>
@@ -531,7 +592,13 @@
 <span class="w">    </span><span class="sd">"""Apply operations atomically and return a newly validated document."""</span>
     <span class="n">candidate</span> <span class="o">=</span> <span class="n">document</span><span class="o">.</span><span class="n">model_copy</span><span class="p">(</span><span class="n">deep</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
     <span class="k">for</span> <span class="n">operation</span> <span class="ow">in</span> <span class="n">operations</span><span class="p">:</span>
-        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">operation</span><span class="p">,</span> <span class="n">SetProp</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">operation</span><span class="p">,</span> <span class="n">SetTitle</span><span class="p">):</span>
+            <span class="n">candidate</span><span class="o">.</span><span class="n">title</span> <span class="o">=</span> <span class="n">operation</span><span class="o">.</span><span class="n">value</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">operation</span><span class="p">,</span> <span class="n">SetKey</span><span class="p">):</span>
+            <span class="n">find_node</span><span class="p">(</span><span class="n">candidate</span><span class="o">.</span><span class="n">root</span><span class="p">,</span> <span class="n">operation</span><span class="o">.</span><span class="n">id</span><span class="p">)</span><span class="o">.</span><span class="n">key</span> <span class="o">=</span> <span class="n">operation</span><span class="o">.</span><span class="n">value</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">operation</span><span class="p">,</span> <span class="n">UnsetKey</span><span class="p">):</span>
+            <span class="n">find_node</span><span class="p">(</span><span class="n">candidate</span><span class="o">.</span><span class="n">root</span><span class="p">,</span> <span class="n">operation</span><span class="o">.</span><span class="n">id</span><span class="p">)</span><span class="o">.</span><span class="n">key</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">operation</span><span class="p">,</span> <span class="n">SetProp</span><span class="p">):</span>
             <span class="n">find_node</span><span class="p">(</span><span class="n">candidate</span><span class="o">.</span><span class="n">root</span><span class="p">,</span> <span class="n">operation</span><span class="o">.</span><span class="n">id</span><span class="p">)</span><span class="o">.</span><span class="n">props</span><span class="p">[</span><span class="n">operation</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">operation</span><span class="o">.</span><span class="n">value</span>
         <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">operation</span><span class="p">,</span> <span class="n">UnsetProp</span><span class="p">):</span>
             <span class="n">find_node</span><span class="p">(</span><span class="n">candidate</span><span class="o">.</span><span class="n">root</span><span class="p">,</span> <span class="n">operation</span><span class="o">.</span><span class="n">id</span><span class="p">)</span><span class="o">.</span><span class="n">props</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">operation</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>

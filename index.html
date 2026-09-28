@@ -201,6 +201,7 @@
 <li class="toctree-l1"><a class="reference internal" href="docs/src/tutorial.html">Edit a live spaday application</a></li>
 <li class="toctree-l1"><a class="reference internal" href="docs/src/how-to.html">How to preview an edit through MCP</a></li>
 <li class="toctree-l1"><a class="reference internal" href="docs/src/save-and-export.html">Save and export a Studio project</a></li>
+<li class="toctree-l1"><a class="reference internal" href="docs/src/access-control.html">Set Studio access roles</a></li>
 <li class="toctree-l1"><a class="reference internal" href="docs/src/use-component-package.html">Use an installed component package</a></li>
 <li class="toctree-l1"><a class="reference internal" href="docs/src/reference.html">Studio pilot reference</a></li>
 <li class="toctree-l1"><a class="reference internal" href="docs/src/explanation.html">Why Studio edits a structured document</a></li>
@@ -264,11 +265,13 @@ validated semantic edits; spaday applies the resulting tree diff without remount
 <ul class="simple">
 <li><p>a selectable live application canvas with schema-driven property, binding, action, and state controls;</p></li>
 <li><p>component catalogs that retain Spaday property, field, event, and named-slot metadata;</p></li>
-<li><p>revision-checked property, binding, event, state, insert, move, and remove operations;</p></li>
+<li><p>revision-checked title, key, property, binding, event, state, insert, move, and remove operations;</p></li>
 <li><p>private browser and MCP drafts with commit, discard, semantic rebase, conflict reporting, inspection,
-and actor-aware undo;</p></li>
+actor-aware undo and redo, and browser-refresh recovery;</p></li>
 <li><p>revision-scoped CodeMirror buffers using transports sequence CRDTs and cursor awareness;</p></li>
-<li><p>atomic structured-project persistence and deterministic Python export;</p></li>
+<li><p>versioned atomic project persistence and deterministic Python export;</p></li>
+<li><p>host-defined read, edit, and admin roles for browser, WebSocket, and MCP operations;</p></li>
+<li><p>public JSON Schemas for documents, semantic operation batches, bindings, expressions, and actions;</p></li>
 <li><p>a persistent Spaday <code class="docutils literal notranslate"><span class="pre">Store</span></code> in the preview canvas, so authored bindings and actions run normally;</p></li>
 <li><p>a Python+JavaScript Copier scaffold, Playwright coverage, and Yardang/Sphinx documentation.</p></li>
 </ul>
@@ -288,6 +291,7 @@ its initial runtime state.</p>
 <p>The MCP endpoint is <code class="docutils literal notranslate"><span class="pre">http://127.0.0.1:8020/mcp</span></code>. Start with the
 <a class="reference internal" href="docs/src/tutorial.html"><span class="std std-doc">guided tutorial</span></a>, connect an agent with the
 <a class="reference internal" href="docs/src/how-to.html"><span class="std std-doc">MCP how-to guide</span></a>, <a class="reference internal" href="docs/src/save-and-export.html"><span class="std std-doc">save and export a project</span></a>,
+<a class="reference internal" href="docs/src/access-control.html"><span class="std std-doc">set hosted access roles</span></a>,
 <a class="reference internal" href="docs/src/use-component-package.html"><span class="std std-doc">use an installed component package</span></a>, consult the
 <a class="reference internal" href="docs/src/reference.html"><span class="std std-doc">API reference</span></a>, or read
 <a class="reference internal" href="docs/src/explanation.html"><span class="std std-doc">why Studio uses a structured document</span></a>.</p>
@@ -301,6 +305,8 @@ complete binding and action surface, plus runtime state.</p></li>
 placement conflicts after another structural edit because its position is stale.</p></li>
 <li><p>Revision-scoped collaborative buffers are in-memory, pruned after their last draft retires, and are not
 part of the saved project.</p></li>
+<li><p>The default authorizer grants admin access for trusted local use. Network deployments must pass an
+authorizer and authenticate HTTP, WebSocket, and MCP connections upstream.</p></li>
 <li><p>Component packages are selected when the server starts; the browser cannot activate a package live.</p></li>
 <li><p>Arbitrary handwritten Python is not losslessly round-tripped.</p></li>
 <li><p>Python export is one-way generated output; the structured JSON project remains the editable source.</p></li>

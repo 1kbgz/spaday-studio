@@ -200,6 +200,7 @@
 <li class="toctree-l1"><a class="reference internal" href="../../docs/src/tutorial.html">Edit a live spaday application</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../docs/src/how-to.html">How to preview an edit through MCP</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../docs/src/save-and-export.html">Save and export a Studio project</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../docs/src/access-control.html">Set Studio access roles</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../docs/src/use-component-package.html">Use an installed component package</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../docs/src/reference.html">Studio pilot reference</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../docs/src/explanation.html">Why Studio edits a structured document</a></li>
@@ -255,12 +256,15 @@
     <span class="n">RemoveNode</span><span class="p">,</span>
     <span class="n">SetBinding</span><span class="p">,</span>
     <span class="n">SetEvent</span><span class="p">,</span>
+    <span class="n">SetKey</span><span class="p">,</span>
     <span class="n">SetProp</span><span class="p">,</span>
     <span class="n">SetState</span><span class="p">,</span>
+    <span class="n">SetTitle</span><span class="p">,</span>
     <span class="n">StudioDocument</span><span class="p">,</span>
     <span class="n">StudioOperation</span><span class="p">,</span>
     <span class="n">UnsetBinding</span><span class="p">,</span>
     <span class="n">UnsetEvent</span><span class="p">,</span>
+    <span class="n">UnsetKey</span><span class="p">,</span>
     <span class="n">UnsetProp</span><span class="p">,</span>
     <span class="n">UnsetState</span><span class="p">,</span>
     <span class="n">apply_operations</span><span class="p">,</span>
@@ -298,8 +302,9 @@
 <span class="k">class</span><span class="w"> </span><span class="nc">_Commit</span><span class="p">:</span>
     <span class="n">revision</span><span class="p">:</span> <span class="nb">int</span>
     <span class="n">owner</span><span class="p">:</span> <span class="nb">str</span>
-    <span class="n">operations</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">StudioOperation</span><span class="p">]</span>
+    <span class="n">operations</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">StudioOperation</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span>
     <span class="n">previous</span><span class="p">:</span> <span class="n">StudioDocument</span>
+    <span class="n">current</span><span class="p">:</span> <span class="n">StudioDocument</span>
 
 
 <div class="viewcode-block" id="StudioSession">
@@ -307,10 +312,22 @@
 <span class="k">class</span><span class="w"> </span><span class="nc">StudioSession</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">"""Apply validated edits and manage isolated transactional drafts."""</span>
 
-    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">document</span><span class="p">:</span> <span class="n">StudioDocument</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">save_document</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">StudioDocument</span><span class="p">],</span> <span class="kc">None</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">document</span><span class="p">:</span> <span class="n">StudioDocument</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">save_document</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">StudioDocument</span><span class="p">],</span> <span class="kc">None</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">history_limit</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">100</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">history_limit</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"history_limit must be at least 1"</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">state</span> <span class="o">=</span> <span class="n">StudioState</span><span class="p">(</span><span class="n">document</span><span class="o">=</span><span class="n">document</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_drafts</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">_Draft</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_commits</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">_Commit</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_undo</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">_Commit</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_redo</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">_Commit</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_history_floor</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_history_limit</span> <span class="o">=</span> <span class="n">history_limit</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_lock</span> <span class="o">=</span> <span class="n">RLock</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_save_document</span> <span class="o">=</span> <span class="n">save_document</span>
 
@@ -347,6 +364,24 @@
         <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">_lock</span><span class="p">:</span>
             <span class="n">document</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_owned_draft</span><span class="p">(</span><span class="n">draft_id</span><span class="p">,</span> <span class="n">owner</span><span class="p">)</span><span class="o">.</span><span class="n">document</span> <span class="k">if</span> <span class="n">draft_id</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">state</span><span class="o">.</span><span class="n">document</span>
             <span class="k">return</span> <span class="n">find_node</span><span class="p">(</span><span class="n">document</span><span class="o">.</span><span class="n">root</span><span class="p">,</span> <span class="n">node_id</span><span class="p">)</span><span class="o">.</span><span class="n">model_dump</span><span class="p">(</span><span class="n">mode</span><span class="o">=</span><span class="s2">"json"</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="StudioSession.preview_for">
+<a class="viewcode-back" href="../../docs/src/reference.html#spaday_studio.StudioSession.preview_for">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">preview_for</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">owner</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Return ``owner``'s active private preview, if one exists."""</span>
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">_lock</span><span class="p">:</span>
+            <span class="n">draft</span> <span class="o">=</span> <span class="nb">next</span><span class="p">((</span><span class="n">draft</span> <span class="k">for</span> <span class="n">draft</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_drafts</span><span class="o">.</span><span class="n">values</span><span class="p">()</span> <span class="k">if</span> <span class="n">draft</span><span class="o">.</span><span class="n">owner</span> <span class="o">==</span> <span class="n">owner</span><span class="p">),</span> <span class="kc">None</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">draft</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">return</span> <span class="kc">None</span>
+            <span class="n">old</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">state</span><span class="o">.</span><span class="n">document</span><span class="o">.</span><span class="n">component</span><span class="p">()</span><span class="o">.</span><span class="n">to_json</span><span class="p">()</span>
+            <span class="n">new</span> <span class="o">=</span> <span class="n">draft</span><span class="o">.</span><span class="n">document</span><span class="o">.</span><span class="n">component</span><span class="p">()</span><span class="o">.</span><span class="n">to_json</span><span class="p">()</span>
+            <span class="k">return</span> <span class="p">{</span>
+                <span class="s2">"preview_id"</span><span class="p">:</span> <span class="n">draft</span><span class="o">.</span><span class="n">id</span><span class="p">,</span>
+                <span class="s2">"base_revision"</span><span class="p">:</span> <span class="n">draft</span><span class="o">.</span><span class="n">base_revision</span><span class="p">,</span>
+                <span class="s2">"document"</span><span class="p">:</span> <span class="n">draft</span><span class="o">.</span><span class="n">document</span><span class="o">.</span><span class="n">model_dump</span><span class="p">(</span><span class="n">mode</span><span class="o">=</span><span class="s2">"json"</span><span class="p">),</span>
+                <span class="s2">"patch"</span><span class="p">:</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">diff</span><span class="p">(</span><span class="n">old</span><span class="p">,</span> <span class="n">new</span><span class="p">)),</span>
+            <span class="p">}</span></div>
 
 
 <div class="viewcode-block" id="StudioSession.python_source">
@@ -424,8 +459,12 @@
 <span class="w">        </span><span class="sd">"""Commit an owned draft, rebasing it over disjoint accepted changes."""</span>
         <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">_lock</span><span class="p">:</span>
             <span class="n">draft</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_owned_draft</span><span class="p">(</span><span class="n">preview_id</span><span class="p">,</span> <span class="n">owner</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">draft</span><span class="o">.</span><span class="n">base_revision</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">_history_floor</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">PreviewConflict</span><span class="p">(</span><span class="sa">f</span><span class="s2">"draft cannot be rebased because revision </span><span class="si">{</span><span class="n">draft</span><span class="o">.</span><span class="n">base_revision</span><span class="si">}</span><span class="s2"> history is no longer retained"</span><span class="p">)</span>
             <span class="n">intervening</span> <span class="o">=</span> <span class="p">[</span><span class="n">commit</span> <span class="k">for</span> <span class="n">commit</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_commits</span> <span class="k">if</span> <span class="n">commit</span><span class="o">.</span><span class="n">revision</span> <span class="o">&gt;</span> <span class="n">draft</span><span class="o">.</span><span class="n">base_revision</span><span class="p">]</span>
             <span class="k">for</span> <span class="n">commit</span> <span class="ow">in</span> <span class="n">intervening</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">commit</span><span class="o">.</span><span class="n">operations</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="n">PreviewConflict</span><span class="p">(</span><span class="sa">f</span><span class="s2">"draft conflicts with revision </span><span class="si">{</span><span class="n">commit</span><span class="o">.</span><span class="n">revision</span><span class="si">}</span><span class="s2">: canonical history changed"</span><span class="p">)</span>
                 <span class="n">reason</span> <span class="o">=</span> <span class="n">_conflict_reason</span><span class="p">(</span><span class="n">draft</span><span class="o">.</span><span class="n">operations</span><span class="p">,</span> <span class="n">commit</span><span class="o">.</span><span class="n">operations</span><span class="p">)</span>
                 <span class="k">if</span> <span class="n">reason</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
                     <span class="k">raise</span> <span class="n">PreviewConflict</span><span class="p">(</span><span class="sa">f</span><span class="s2">"draft conflicts with revision </span><span class="si">{</span><span class="n">commit</span><span class="o">.</span><span class="n">revision</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">reason</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
@@ -454,9 +493,9 @@
 <span class="w">        </span><span class="sd">"""Undo the owner's most recent commit when it is still the canonical head."""</span>
         <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">_lock</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_expect_revision</span><span class="p">(</span><span class="n">expected_revision</span><span class="p">)</span>
-            <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_commits</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_undo</span><span class="p">:</span>
                 <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"no committed edit to undo"</span><span class="p">)</span>
-            <span class="n">commit</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_commits</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+            <span class="n">commit</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_undo</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
             <span class="k">if</span> <span class="n">commit</span><span class="o">.</span><span class="n">owner</span> <span class="o">!=</span> <span class="n">owner</span><span class="p">:</span>
                 <span class="k">raise</span> <span class="n">RevisionConflict</span><span class="p">(</span><span class="sa">f</span><span class="s2">"revision </span><span class="si">{</span><span class="n">commit</span><span class="o">.</span><span class="n">revision</span><span class="si">}</span><span class="s2"> belongs to another editor"</span><span class="p">)</span>
             <span class="n">candidate</span> <span class="o">=</span> <span class="n">commit</span><span class="o">.</span><span class="n">previous</span>
@@ -464,8 +503,43 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">_persist</span><span class="p">(</span><span class="n">candidate</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">state</span><span class="o">.</span><span class="n">document</span> <span class="o">=</span> <span class="n">candidate</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">state</span><span class="o">.</span><span class="n">revision</span> <span class="o">+=</span> <span class="mi">1</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_commits</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">_Commit</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">state</span><span class="o">.</span><span class="n">revision</span><span class="p">,</span> <span class="n">owner</span><span class="p">,</span> <span class="p">[],</span> <span class="n">previous</span><span class="p">))</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_undo</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_redo</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">commit</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_record_history_change</span><span class="p">(</span><span class="n">owner</span><span class="p">,</span> <span class="n">previous</span><span class="p">,</span> <span class="n">candidate</span><span class="p">)</span>
             <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">snapshot</span><span class="p">()</span></div>
+
+
+<div class="viewcode-block" id="StudioSession.redo">
+<a class="viewcode-back" href="../../docs/src/reference.html#spaday_studio.StudioSession.redo">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">redo</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expected_revision</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">owner</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"direct"</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Redo the owner's most recently undone commit when no new edit replaced it."""</span>
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">_lock</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_expect_revision</span><span class="p">(</span><span class="n">expected_revision</span><span class="p">)</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_redo</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"no committed edit to redo"</span><span class="p">)</span>
+            <span class="n">commit</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_redo</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">commit</span><span class="o">.</span><span class="n">owner</span> <span class="o">!=</span> <span class="n">owner</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">RevisionConflict</span><span class="p">(</span><span class="s2">"redo belongs to another editor"</span><span class="p">)</span>
+            <span class="n">candidate</span> <span class="o">=</span> <span class="n">commit</span><span class="o">.</span><span class="n">current</span>
+            <span class="n">previous</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">state</span><span class="o">.</span><span class="n">document</span><span class="o">.</span><span class="n">model_copy</span><span class="p">(</span><span class="n">deep</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_persist</span><span class="p">(</span><span class="n">candidate</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">state</span><span class="o">.</span><span class="n">document</span> <span class="o">=</span> <span class="n">candidate</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">state</span><span class="o">.</span><span class="n">revision</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_redo</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_undo</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">commit</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_record_history_change</span><span class="p">(</span><span class="n">owner</span><span class="p">,</span> <span class="n">previous</span><span class="p">,</span> <span class="n">candidate</span><span class="p">)</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">snapshot</span><span class="p">()</span></div>
+
+
+<div class="viewcode-block" id="StudioSession.history">
+<a class="viewcode-back" href="../../docs/src/reference.html#spaday_studio.StudioSession.history">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">history</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">owner</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"direct"</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">bool</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">"""Return whether ``owner`` can undo or redo the canonical head."""</span>
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">_lock</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">{</span>
+                <span class="s2">"can_undo"</span><span class="p">:</span> <span class="nb">bool</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_undo</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">_undo</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">owner</span> <span class="o">==</span> <span class="n">owner</span><span class="p">),</span>
+                <span class="s2">"can_redo"</span><span class="p">:</span> <span class="nb">bool</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_redo</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">_redo</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">owner</span> <span class="o">==</span> <span class="n">owner</span><span class="p">),</span>
+            <span class="p">}</span></div>
 
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_accept</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">candidate</span><span class="p">:</span> <span class="n">StudioDocument</span><span class="p">,</span> <span class="n">operations</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">StudioOperation</span><span class="p">],</span> <span class="n">owner</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
@@ -473,7 +547,33 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">_persist</span><span class="p">(</span><span class="n">candidate</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">state</span><span class="o">.</span><span class="n">document</span> <span class="o">=</span> <span class="n">candidate</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">state</span><span class="o">.</span><span class="n">revision</span> <span class="o">+=</span> <span class="mi">1</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_commits</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">_Commit</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">state</span><span class="o">.</span><span class="n">revision</span><span class="p">,</span> <span class="n">owner</span><span class="p">,</span> <span class="n">operations</span><span class="p">,</span> <span class="n">previous</span><span class="p">))</span>
+        <span class="n">commit</span> <span class="o">=</span> <span class="n">_Commit</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">state</span><span class="o">.</span><span class="n">revision</span><span class="p">,</span> <span class="n">owner</span><span class="p">,</span> <span class="n">operations</span><span class="p">,</span> <span class="n">previous</span><span class="p">,</span> <span class="n">candidate</span><span class="o">.</span><span class="n">model_copy</span><span class="p">(</span><span class="n">deep</span><span class="o">=</span><span class="kc">True</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_commits</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">commit</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_undo</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">commit</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_redo</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_prune_history</span><span class="p">()</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_record_history_change</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">owner</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">previous</span><span class="p">:</span> <span class="n">StudioDocument</span><span class="p">,</span> <span class="n">current</span><span class="p">:</span> <span class="n">StudioDocument</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_commits</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+            <span class="n">_Commit</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">state</span><span class="o">.</span><span class="n">revision</span><span class="p">,</span>
+                <span class="n">owner</span><span class="p">,</span>
+                <span class="kc">None</span><span class="p">,</span>
+                <span class="n">previous</span><span class="p">,</span>
+                <span class="n">current</span><span class="o">.</span><span class="n">model_copy</span><span class="p">(</span><span class="n">deep</span><span class="o">=</span><span class="kc">True</span><span class="p">),</span>
+            <span class="p">)</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_prune_history</span><span class="p">()</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_prune_history</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_commits</span><span class="p">)</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">_history_limit</span><span class="p">:</span>
+            <span class="n">removed</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_commits</span><span class="p">[:</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">_history_limit</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_commits</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_commits</span><span class="p">[</span><span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">_history_limit</span> <span class="p">:]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_history_floor</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_history_floor</span><span class="p">,</span> <span class="n">removed</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">revision</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_undo</span><span class="p">)</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">_history_limit</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_undo</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_undo</span><span class="p">[</span><span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">_history_limit</span> <span class="p">:]</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_redo</span><span class="p">)</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">_history_limit</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_redo</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_redo</span><span class="p">[</span><span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">_history_limit</span> <span class="p">:]</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_expect_revision</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expected_revision</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
         <span class="k">if</span> <span class="n">expected_revision</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">state</span><span class="o">.</span><span class="n">revision</span><span class="p">:</span>
@@ -525,7 +625,12 @@
         <span class="n">name</span><span class="p">:</span> <span class="nb">set</span><span class="p">()</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">"fields"</span><span class="p">,</span> <span class="s2">"targets"</span><span class="p">,</span> <span class="s2">"removed"</span><span class="p">,</span> <span class="s2">"moved"</span><span class="p">,</span> <span class="s2">"nodes"</span><span class="p">,</span> <span class="s2">"slots"</span><span class="p">,</span> <span class="s2">"indexed_slots"</span><span class="p">,</span> <span class="s2">"anchors"</span><span class="p">,</span> <span class="s2">"inserted"</span><span class="p">)</span>
     <span class="p">}</span>
     <span class="k">for</span> <span class="n">operation</span> <span class="ow">in</span> <span class="n">operations</span><span class="p">:</span>
-        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">operation</span><span class="p">,</span> <span class="p">(</span><span class="n">SetProp</span><span class="p">,</span> <span class="n">UnsetProp</span><span class="p">)):</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">operation</span><span class="p">,</span> <span class="n">SetTitle</span><span class="p">):</span>
+            <span class="n">facts</span><span class="p">[</span><span class="s2">"fields"</span><span class="p">]</span><span class="o">.</span><span class="n">add</span><span class="p">((</span><span class="s2">"document"</span><span class="p">,</span> <span class="s2">"title"</span><span class="p">))</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">operation</span><span class="p">,</span> <span class="p">(</span><span class="n">SetKey</span><span class="p">,</span> <span class="n">UnsetKey</span><span class="p">)):</span>
+            <span class="n">facts</span><span class="p">[</span><span class="s2">"fields"</span><span class="p">]</span><span class="o">.</span><span class="n">add</span><span class="p">((</span><span class="s2">"key"</span><span class="p">,</span> <span class="n">operation</span><span class="o">.</span><span class="n">id</span><span class="p">))</span>
+            <span class="n">facts</span><span class="p">[</span><span class="s2">"targets"</span><span class="p">]</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">operation</span><span class="o">.</span><span class="n">id</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">operation</span><span class="p">,</span> <span class="p">(</span><span class="n">SetProp</span><span class="p">,</span> <span class="n">UnsetProp</span><span class="p">)):</span>
             <span class="n">facts</span><span class="p">[</span><span class="s2">"fields"</span><span class="p">]</span><span class="o">.</span><span class="n">add</span><span class="p">((</span><span class="s2">"prop"</span><span class="p">,</span> <span class="n">operation</span><span class="o">.</span><span class="n">id</span><span class="p">,</span> <span class="n">operation</span><span class="o">.</span><span class="n">name</span><span class="p">))</span>
             <span class="n">facts</span><span class="p">[</span><span class="s2">"targets"</span><span class="p">]</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">operation</span><span class="o">.</span><span class="n">id</span><span class="p">)</span>
         <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">operation</span><span class="p">,</span> <span class="p">(</span><span class="n">SetBinding</span><span class="p">,</span> <span class="n">UnsetBinding</span><span class="p">)):</span>

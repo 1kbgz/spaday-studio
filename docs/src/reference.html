@@ -201,6 +201,7 @@
 <li class="toctree-l1"><a class="reference internal" href="tutorial.html">Edit a live spaday application</a></li>
 <li class="toctree-l1"><a class="reference internal" href="how-to.html">How to preview an edit through MCP</a></li>
 <li class="toctree-l1"><a class="reference internal" href="save-and-export.html">Save and export a Studio project</a></li>
+<li class="toctree-l1"><a class="reference internal" href="access-control.html">Set Studio access roles</a></li>
 <li class="toctree-l1"><a class="reference internal" href="use-component-package.html">Use an installed component package</a></li>
 <li class="toctree-l1 current current-page"><a class="current reference internal" href="#">Studio pilot reference</a></li>
 <li class="toctree-l1"><a class="reference internal" href="explanation.html">Why Studio edits a structured document</a></li>
@@ -303,47 +304,59 @@ property values are converted to spaday’s tagged wire representation by the no
 </tr>
 </thead>
 <tbody>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">set_prop</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">set_title</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">value</span></code></p></td>
+<td><p>Replaces the project title.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">set_key</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">id</span></code>, <code class="docutils literal notranslate"><span class="pre">value</span></code></p></td>
+<td><p>Sets a node’s reconciliation key.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">unset_key</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">id</span></code></p></td>
+<td><p>Restores the node ID as its default key.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">set_prop</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">id</span></code>, <code class="docutils literal notranslate"><span class="pre">name</span></code>, <code class="docutils literal notranslate"><span class="pre">value</span></code></p></td>
 <td><p>Sets one JSON-compatible property.</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">unset_prop</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">unset_prop</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">id</span></code>, <code class="docutils literal notranslate"><span class="pre">name</span></code></p></td>
 <td><p>Removes one authored property.</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">set_binding</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">set_binding</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">id</span></code>, <code class="docutils literal notranslate"><span class="pre">name</span></code>, <code class="docutils literal notranslate"><span class="pre">binding</span></code></p></td>
 <td><p>Sets one core-validated reactive binding.</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">unset_binding</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">unset_binding</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">id</span></code>, <code class="docutils literal notranslate"><span class="pre">name</span></code></p></td>
 <td><p>Removes one reactive binding.</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">set_event</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">set_event</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">id</span></code>, <code class="docutils literal notranslate"><span class="pre">name</span></code>, <code class="docutils literal notranslate"><span class="pre">action</span></code></p></td>
 <td><p>Sets one core-validated event action.</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">unset_event</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">unset_event</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">id</span></code>, <code class="docutils literal notranslate"><span class="pre">name</span></code></p></td>
 <td><p>Removes one event action.</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">set_state</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">set_state</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">name</span></code>, <code class="docutils literal notranslate"><span class="pre">value</span></code></p></td>
 <td><p>Sets one initial Store field.</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">unset_state</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">unset_state</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">name</span></code></p></td>
 <td><p>Removes one initial Store field.</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">insert</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">insert</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">parent_id</span></code>, <code class="docutils literal notranslate"><span class="pre">slot</span></code>, <code class="docutils literal notranslate"><span class="pre">node</span></code></p></td>
 <td><p>Inserts a new subtree.</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">move</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">move</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">id</span></code>, <code class="docutils literal notranslate"><span class="pre">parent_id</span></code>, <code class="docutils literal notranslate"><span class="pre">slot</span></code></p></td>
 <td><p>Moves an existing subtree by identity.</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">remove</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">remove</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">id</span></code></p></td>
 <td><p>Removes a non-root subtree.</p></td>
 </tr>
@@ -360,7 +373,7 @@ and malformed values reject the complete batch.</p>
 <h2><code class="docutils literal notranslate"><span class="pre">StudioSession</span></code><a class="headerlink" href="#studiosession" title="Link to this heading">¶</a></h2>
 <dl class="py class">
 <dt class="sig sig-object py" id="spaday_studio.StudioSession">
-<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">spaday_studio.</span></span><span class="sig-name descname"><span class="pre">StudioSession</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">document</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#spaday_studio.StudioDocument" title="spaday_studio.models.StudioDocument"><span class="pre">StudioDocument</span></a></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">save_document</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Callable</span><span class="p"><span class="pre">[</span></span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#spaday_studio.StudioDocument" title="spaday_studio.models.StudioDocument"><span class="pre">StudioDocument</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">None</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/spaday_studio/session.html#StudioSession"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#spaday_studio.StudioSession" title="Link to this definition">¶</a></dt>
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">spaday_studio.</span></span><span class="sig-name descname"><span class="pre">StudioSession</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">document</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#spaday_studio.StudioDocument" title="spaday_studio.models.StudioDocument"><span class="pre">StudioDocument</span></a></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">save_document</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Callable</span><span class="p"><span class="pre">[</span></span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#spaday_studio.StudioDocument" title="spaday_studio.models.StudioDocument"><span class="pre">StudioDocument</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">None</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">history_limit</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">100</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/spaday_studio/session.html#StudioSession"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#spaday_studio.StudioSession" title="Link to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
 <p>Apply validated edits and manage isolated transactional drafts.</p>
 <dl class="py property">
@@ -394,6 +407,12 @@ and malformed values reject the complete batch.</p>
 </dd></dl>
 
 <dl class="py method">
+<dt class="sig sig-object py" id="spaday_studio.StudioSession.history">
+<span class="sig-name descname"><span class="pre">history</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">owner</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'direct'</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">bool</span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../../_modules/spaday_studio/session.html#StudioSession.history"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#spaday_studio.StudioSession.history" title="Link to this definition">¶</a></dt>
+<dd><p>Return whether <code class="docutils literal notranslate"><span class="pre">owner</span></code> can undo or redo the canonical head.</p>
+</dd></dl>
+
+<dl class="py method">
 <dt class="sig sig-object py" id="spaday_studio.StudioSession.inspect">
 <span class="sig-name descname"><span class="pre">inspect</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">node_id</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">draft_id</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">owner</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">dict</span></span></span><a class="reference internal" href="../../_modules/spaday_studio/session.html#StudioSession.inspect"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#spaday_studio.StudioSession.inspect" title="Link to this definition">¶</a></dt>
 <dd><p>Return one node from the canonical document or an owned private draft.</p>
@@ -406,6 +425,12 @@ and malformed values reject the complete batch.</p>
 </dd></dl>
 
 <dl class="py method">
+<dt class="sig sig-object py" id="spaday_studio.StudioSession.preview_for">
+<span class="sig-name descname"><span class="pre">preview_for</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">owner</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">dict</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span></span><a class="reference internal" href="../../_modules/spaday_studio/session.html#StudioSession.preview_for"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#spaday_studio.StudioSession.preview_for" title="Link to this definition">¶</a></dt>
+<dd><p>Return <code class="docutils literal notranslate"><span class="pre">owner</span></code>’s active private preview, if one exists.</p>
+</dd></dl>
+
+<dl class="py method">
 <dt class="sig sig-object py" id="spaday_studio.StudioSession.python_export">
 <span class="sig-name descname"><span class="pre">python_export</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">dict</span></span></span><a class="reference internal" href="../../_modules/spaday_studio/session.html#StudioSession.python_export"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#spaday_studio.StudioSession.python_export" title="Link to this definition">¶</a></dt>
 <dd><p>Return a matching canonical revision and deterministic Python source.</p>
@@ -415,6 +440,12 @@ and malformed values reject the complete batch.</p>
 <dt class="sig sig-object py" id="spaday_studio.StudioSession.python_source">
 <span class="sig-name descname"><span class="pre">python_source</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="reference internal" href="../../_modules/spaday_studio/session.html#StudioSession.python_source"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#spaday_studio.StudioSession.python_source" title="Link to this definition">¶</a></dt>
 <dd><p>Export the canonical document as deterministic spaday Python.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="spaday_studio.StudioSession.redo">
+<span class="sig-name descname"><span class="pre">redo</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">expected_revision</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">owner</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'direct'</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">dict</span></span></span><a class="reference internal" href="../../_modules/spaday_studio/session.html#StudioSession.redo"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#spaday_studio.StudioSession.redo" title="Link to this definition">¶</a></dt>
+<dd><p>Redo the owner’s most recently undone commit when no new edit replaced it.</p>
 </dd></dl>
 
 <dl class="py method">
@@ -506,11 +537,33 @@ and malformed values reject the complete batch.</p>
 <dd><p>Render <code class="docutils literal notranslate"><span class="pre">document</span></code> as deterministic, ordinary spaday Python authoring code.</p>
 </dd></dl>
 
+<dl class="py function">
+<dt class="sig sig-object py" id="spaday_studio.document_schema">
+<span class="sig-prename descclassname"><span class="pre">spaday_studio.</span></span><span class="sig-name descname"><span class="pre">document_schema</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">dict</span></span></span><a class="reference internal" href="../../_modules/spaday_studio/models.html#document_schema"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#spaday_studio.document_schema" title="Link to this definition">¶</a></dt>
+<dd><p>Return the public JSON Schema for a Studio document.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="spaday_studio.operation_schema">
+<span class="sig-prename descclassname"><span class="pre">spaday_studio.</span></span><span class="sig-name descname"><span class="pre">operation_schema</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">dict</span></span></span><a class="reference internal" href="../../_modules/spaday_studio/models.html#operation_schema"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#spaday_studio.operation_schema" title="Link to this definition">¶</a></dt>
+<dd><p>Return the public JSON Schema for one Studio operation.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="spaday_studio.operation_batch_schema">
+<span class="sig-prename descclassname"><span class="pre">spaday_studio.</span></span><span class="sig-name descname"><span class="pre">operation_batch_schema</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">dict</span></span></span><a class="reference internal" href="../../_modules/spaday_studio/models.html#operation_batch_schema"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#spaday_studio.operation_batch_schema" title="Link to this definition">¶</a></dt>
+<dd><p>Return the public JSON Schema for an atomic Studio operation batch.</p>
+</dd></dl>
+
+<p><code class="docutils literal notranslate"><span class="pre">StudioSession(...,</span> <span class="pre">history_limit=100)</span></code> bounds the canonical journal and undo and redo stacks. Undo and
+redo apply only when the actor owns the latest eligible edit. A new accepted edit clears redo. A private
+draft older than the retained journal returns a conflict instead of rebasing without the required history.</p>
 </section>
 <section id="project-persistence-and-python-export">
 <h2>Project persistence and Python export<a class="headerlink" href="#project-persistence-and-python-export" title="Link to this heading">¶</a></h2>
-<p><code class="docutils literal notranslate"><span class="pre">ProjectFile.save()</span></code> serializes canonical documents as indented, key-sorted UTF-8 JSON and replaces the
-target atomically. <code class="docutils literal notranslate"><span class="pre">ProjectFile.load()</span></code> validates the complete file as a <code class="docutils literal notranslate"><span class="pre">StudioDocument</span></code>.</p>
+<p><code class="docutils literal notranslate"><span class="pre">ProjectFile.save()</span></code> serializes canonical documents in an envelope containing <code class="docutils literal notranslate"><span class="pre">schema_version</span></code> and
+<code class="docutils literal notranslate"><span class="pre">document</span></code>, then replaces the target atomically. <code class="docutils literal notranslate"><span class="pre">ProjectFile.load()</span></code> validates the envelope and rejects an
+unsupported schema version. Studio does not load the unversioned 0.1 pilot format.</p>
 <p><code class="docutils literal notranslate"><span class="pre">export_python()</span></code> returns deterministic source containing <code class="docutils literal notranslate"><span class="pre">INITIAL_STATE</span></code> and a <code class="docutils literal notranslate"><span class="pre">page()</span> <span class="pre">-&gt;</span> <span class="pre">Component</span></code>
 function. Generated nodes use stable numbered variables, retain explicit keys and Studio IDs, emit
 validated <code class="docutils literal notranslate"><span class="pre">bind_wire</span></code> and <code class="docutils literal notranslate"><span class="pre">on_wire</span></code> calls, sort property and slot names, and preserve child order within
@@ -643,17 +696,41 @@ It maps Python constructor parameters to their emitted wire property names and c
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">GET</span> <span class="pre">/api/schema/behavior</span></code></p></td>
 <td><p>Core action, expression, and binding JSON Schemas.</p></td>
 </tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">GET</span> <span class="pre">/api/schema/document</span></code></p></td>
+<td><p>Studio document JSON Schema.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">GET</span> <span class="pre">/api/schema/operation</span></code></p></td>
+<td><p>One semantic operation JSON Schema.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">GET</span> <span class="pre">/api/schema/operations</span></code></p></td>
+<td><p>Atomic operation-batch JSON Schema.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">GET</span> <span class="pre">/api/access</span></code></p></td>
+<td><p>Role assigned to an actor.</p></td>
+</tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">POST</span> <span class="pre">/api/operations</span></code></p></td>
 <td><p>Commit a revision-checked batch directly.</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">POST</span> <span class="pre">/api/drafts</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">GET</span> <span class="pre">/api/drafts</span></code></p></td>
+<td><p>Recover an actor’s active private draft.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">POST</span> <span class="pre">/api/drafts</span></code></p></td>
 <td><p>Create or append to an actor’s private draft.</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">POST</span> <span class="pre">/api/drafts/{id}/commit</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">POST</span> <span class="pre">/api/drafts/{id}/commit</span></code></p></td>
 <td><p>Commit and, when safe, rebase a private draft.</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">POST</span> <span class="pre">/api/drafts/{id}/discard</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">POST</span> <span class="pre">/api/drafts/{id}/discard</span></code></p></td>
 <td><p>Discard a private draft.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">GET</span> <span class="pre">/api/history</span></code></p></td>
+<td><p>Report actor-specific undo and redo availability.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">POST</span> <span class="pre">/api/history/undo</span></code></p></td>
+<td><p>Undo the actor’s eligible accepted edit.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">POST</span> <span class="pre">/api/history/redo</span></code></p></td>
+<td><p>Redo the actor’s latest undone edit.</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">WS</span> <span class="pre">/ws</span></code></p></td>
 <td><p>Transports mirror carrying canonical state.</p></td>
@@ -667,15 +744,27 @@ It maps Python constructor parameters to their emitted wire property names and c
 </tbody>
 </table>
 </div>
-<p><code class="docutils literal notranslate"><span class="pre">POST</span> <span class="pre">/api/operations</span></code> accepts <code class="docutils literal notranslate"><span class="pre">expected_revision</span></code> and <code class="docutils literal notranslate"><span class="pre">operations</span></code>. A stale revision returns HTTP
-409. Validation failures return HTTP 422.</p>
+<p><code class="docutils literal notranslate"><span class="pre">POST</span> <span class="pre">/api/operations</span></code> accepts <code class="docutils literal notranslate"><span class="pre">expected_revision</span></code>, <code class="docutils literal notranslate"><span class="pre">actor_id</span></code>, and <code class="docutils literal notranslate"><span class="pre">operations</span></code>. It requires admin
+access. Draft and history mutations require edit access. A stale revision returns HTTP 409, denied access
+returns HTTP 403, and validation failures return HTTP 422.</p>
+</section>
+<section id="access-control">
+<h2>Access control<a class="headerlink" href="#access-control" title="Link to this heading">¶</a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">create_app(authorize=...)</span></code> accepts a synchronous <code class="docutils literal notranslate"><span class="pre">StudioAuthorizer</span></code>. The callback receives a
+<code class="docutils literal notranslate"><span class="pre">StudioAccessContext</span></code>, the claimed actor ID, and returns <code class="docutils literal notranslate"><span class="pre">read</span></code>, <code class="docutils literal notranslate"><span class="pre">edit</span></code>, or <code class="docutils literal notranslate"><span class="pre">admin</span></code>. Read access opens the
+canvas and subscribes to collaborative buffers without write permission. Edit access adds private drafts,
+buffer changes, commit, discard, undo, and redo. Admin access adds direct canonical operations.</p>
+<p>The default callback grants admin access. The authorizer assigns permissions but does not authenticate a
+claimed actor ID. HTTP and WebSocket contexts expose their Starlette connection so a host can compare the
+actor ID with authenticated request state. MCP contexts have no request object; authenticate <code class="docutils literal notranslate"><span class="pre">/mcp</span></code>
+upstream and apply an actor policy in the callback.</p>
 </section>
 <section id="mcp-surface">
 <h2>MCP surface<a class="headerlink" href="#mcp-surface" title="Link to this heading">¶</a></h2>
 <p>The <code class="docutils literal notranslate"><span class="pre">spaday://project</span></code> resource returns current state. <code class="docutils literal notranslate"><span class="pre">spaday://catalog</span></code> returns installed/selected
 package names and compact component summaries. Catalog tools are <code class="docutils literal notranslate"><span class="pre">list_components</span></code> and
 <code class="docutils literal notranslate"><span class="pre">get_component_schema</span></code>. Editing tools are <code class="docutils literal notranslate"><span class="pre">inspect_component</span></code>, <code class="docutils literal notranslate"><span class="pre">export_python</span></code>, <code class="docutils literal notranslate"><span class="pre">preview_operations</span></code>,
-<code class="docutils literal notranslate"><span class="pre">commit_preview</span></code>, <code class="docutils literal notranslate"><span class="pre">discard_preview</span></code>, <code class="docutils literal notranslate"><span class="pre">apply_operations</span></code>, and <code class="docutils literal notranslate"><span class="pre">undo</span></code>.</p>
+<code class="docutils literal notranslate"><span class="pre">commit_preview</span></code>, <code class="docutils literal notranslate"><span class="pre">discard_preview</span></code>, <code class="docutils literal notranslate"><span class="pre">apply_operations</span></code>, <code class="docutils literal notranslate"><span class="pre">history</span></code>, <code class="docutils literal notranslate"><span class="pre">undo</span></code>, and <code class="docutils literal notranslate"><span class="pre">redo</span></code>.</p>
 <p>Draft tools accept an <code class="docutils literal notranslate"><span class="pre">actor_id</span></code>. An actor can append to its draft by passing the returned <code class="docutils literal notranslate"><span class="pre">preview_id</span></code> to
 <code class="docutils literal notranslate"><span class="pre">preview_operations</span></code>. Other actors cannot inspect, commit, or discard that draft. Disjoint stale drafts
 rebase over accepted revisions; overlapping operations return a conflict naming the target.</p>
@@ -747,10 +836,13 @@ rebase over accepted revisions; overlapping operations return a conflict naming 
 <li><a class="reference internal" href="#spaday_studio.StudioSession.commit_preview"><code class="docutils literal notranslate"><span class="pre">StudioSession.commit_preview()</span></code></a></li>
 <li><a class="reference internal" href="#spaday_studio.StudioSession.discard_preview"><code class="docutils literal notranslate"><span class="pre">StudioSession.discard_preview()</span></code></a></li>
 <li><a class="reference internal" href="#spaday_studio.StudioSession.draft_base_revisions"><code class="docutils literal notranslate"><span class="pre">StudioSession.draft_base_revisions</span></code></a></li>
+<li><a class="reference internal" href="#spaday_studio.StudioSession.history"><code class="docutils literal notranslate"><span class="pre">StudioSession.history()</span></code></a></li>
 <li><a class="reference internal" href="#spaday_studio.StudioSession.inspect"><code class="docutils literal notranslate"><span class="pre">StudioSession.inspect()</span></code></a></li>
 <li><a class="reference internal" href="#spaday_studio.StudioSession.preview"><code class="docutils literal notranslate"><span class="pre">StudioSession.preview()</span></code></a></li>
+<li><a class="reference internal" href="#spaday_studio.StudioSession.preview_for"><code class="docutils literal notranslate"><span class="pre">StudioSession.preview_for()</span></code></a></li>
 <li><a class="reference internal" href="#spaday_studio.StudioSession.python_export"><code class="docutils literal notranslate"><span class="pre">StudioSession.python_export()</span></code></a></li>
 <li><a class="reference internal" href="#spaday_studio.StudioSession.python_source"><code class="docutils literal notranslate"><span class="pre">StudioSession.python_source()</span></code></a></li>
+<li><a class="reference internal" href="#spaday_studio.StudioSession.redo"><code class="docutils literal notranslate"><span class="pre">StudioSession.redo()</span></code></a></li>
 <li><a class="reference internal" href="#spaday_studio.StudioSession.render"><code class="docutils literal notranslate"><span class="pre">StudioSession.render()</span></code></a></li>
 <li><a class="reference internal" href="#spaday_studio.StudioSession.snapshot"><code class="docutils literal notranslate"><span class="pre">StudioSession.snapshot()</span></code></a></li>
 <li><a class="reference internal" href="#spaday_studio.StudioSession.undo"><code class="docutils literal notranslate"><span class="pre">StudioSession.undo()</span></code></a></li>
@@ -773,6 +865,9 @@ rebase over accepted revisions; overlapping operations return a conflict naming 
 </ul>
 </li>
 <li><a class="reference internal" href="#spaday_studio.export_python"><code class="docutils literal notranslate"><span class="pre">export_python()</span></code></a></li>
+<li><a class="reference internal" href="#spaday_studio.document_schema"><code class="docutils literal notranslate"><span class="pre">document_schema()</span></code></a></li>
+<li><a class="reference internal" href="#spaday_studio.operation_schema"><code class="docutils literal notranslate"><span class="pre">operation_schema()</span></code></a></li>
+<li><a class="reference internal" href="#spaday_studio.operation_batch_schema"><code class="docutils literal notranslate"><span class="pre">operation_batch_schema()</span></code></a></li>
 </ul>
 </li>
 <li><a class="reference internal" href="#project-persistence-and-python-export">Project persistence and Python export</a></li>
@@ -794,6 +889,7 @@ rebase over accepted revisions; overlapping operations return a conflict naming 
 </ul>
 </li>
 <li><a class="reference internal" href="#http-and-websocket-endpoints">HTTP and WebSocket endpoints</a></li>
+<li><a class="reference internal" href="#access-control">Access control</a></li>
 <li><a class="reference internal" href="#mcp-surface">MCP surface</a></li>
 </ul>
 </li>
