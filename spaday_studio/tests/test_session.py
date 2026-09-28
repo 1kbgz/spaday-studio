@@ -93,6 +93,27 @@ def test_new_edit_clears_redo_and_history_is_bounded():
     assert len(studio._undo) == 2
 
 
+def test_history_rejects_invalid_limits_and_another_actors_redo():
+    with pytest.raises(ValueError, match="history_limit"):
+        StudioSession(session().state.document, history_limit=0)
+
+    studio = session()
+    studio.apply(0, EDIT, owner="alice")
+    studio.undo(1, owner="alice")
+    with pytest.raises(RevisionConflict, match="another editor"):
+        studio.redo(2, owner="bob")
+
+
+def test_draft_rejects_non_operation_history_changes():
+    studio = session()
+    draft = studio.preview(0, [{"kind": "set_state", "name": "draft", "value": True}], owner="alice")
+    studio.apply(0, EDIT, owner="bob")
+    studio.undo(1, owner="bob")
+
+    with pytest.raises(PreviewConflict, match="canonical history changed"):
+        studio.commit_preview(draft["preview_id"], owner="alice")
+
+
 def test_draft_rejects_rebase_when_required_history_was_pruned():
     studio = StudioSession(session().state.document, history_limit=1)
     draft = studio.preview(0, [{"kind": "set_state", "name": "draft", "value": True}], owner="alice")
@@ -258,6 +279,21 @@ def test_actor_can_recover_its_active_private_draft():
 @pytest.mark.parametrize(
     ("draft", "accepted", "message"),
     [
+        (
+            [{"kind": "set_title", "value": "Draft"}],
+            [{"kind": "set_title", "value": "Accepted"}],
+            "both drafts edit",
+        ),
+        (
+            [{"kind": "set_key", "id": "message", "value": "draft"}],
+            [{"kind": "unset_key", "id": "message"}],
+            "both drafts edit",
+        ),
+        (
+            [{"kind": "move", "id": "message", "parent_id": "root", "index": 0}],
+            [{"kind": "move", "id": "message", "parent_id": "root"}],
+            "both drafts move or remove node 'message'",
+        ),
         (
             [{"kind": "set_prop", "id": "message", "name": "title", "value": "draft"}],
             [{"kind": "remove", "id": "message"}],

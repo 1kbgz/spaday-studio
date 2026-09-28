@@ -1,10 +1,12 @@
 import sys
 import types
 
+import pytest
 import spaday.packages
 import transports
 from spaday import Component, ComponentPackage
 from starlette.testclient import TestClient
+from starlette.websockets import WebSocketDisconnect
 
 from spaday_studio import catalog
 from spaday_studio.access import StudioAccessContext
@@ -131,6 +133,36 @@ def test_host_authorizer_enforces_read_edit_and_admin_roles():
     assert editor_draft.status_code == 200
     assert denied_direct.status_code == 403
     assert administrator.status_code == 200
+
+
+def test_authorization_and_history_errors_are_reported():
+    roles = {"reader": "read", "editor": "edit"}
+
+    def authorize(_context: StudioAccessContext, actor_id: str):
+        return roles.get(actor_id, "invalid")
+
+    app = create_app(authorize=authorize)
+    with TestClient(app) as client:
+        missing_actor = client.get("/api/access")
+        invalid_history_actor = client.get("/api/history", params={"actor_id": "invalid"})
+        invalid_history_action = client.post(
+            "/api/history/invalid",
+            json={"expected_revision": 0, "actor_id": "editor"},
+        )
+        denied_preview = client.get("/api/drafts", params={"actor_id": "reader"})
+        missing_draft = client.post(
+            "/api/drafts/missing/discard",
+            json={"actor_id": "editor"},
+        )
+        with pytest.raises(WebSocketDisconnect) as denied_socket, client.websocket_connect("/ws/buffers/invalid") as websocket:
+            websocket.receive_json()
+
+    assert missing_actor.status_code == 403
+    assert invalid_history_actor.status_code == 403
+    assert invalid_history_action.status_code == 422
+    assert denied_preview.status_code == 403
+    assert missing_draft.status_code == 409
+    assert denied_socket.value.code == 1008
 
 
 def test_server_persists_canonical_edits_and_exports_python(tmp_path):
