@@ -74,6 +74,23 @@ test.describe("Studio document compiler", () => {
     await page
       .locator('[data-studio-prop="textContent"]')
       .fill("Ship the interface while it is running.");
+    const externalEdit = await page.request.post(
+      "http://127.0.0.1:8020/api/operations",
+      {
+        data: {
+          expected_revision: initialRevision,
+          actor_id: "external-test",
+          operations: [{ kind: "set_title", value: "External update" }],
+        },
+      },
+    );
+    expect(externalEdit.ok()).toBe(true);
+    await expect(page.locator("#revision-status")).toHaveText(
+      `Revision ${initialRevision + 1}`,
+    );
+    await expect(page.locator('[data-studio-prop="textContent"]')).toHaveValue(
+      "Ship the interface while it is running.",
+    );
     const previewResponse = page.waitForResponse(
       (response) =>
         response.request().method() === "POST" &&
@@ -83,7 +100,7 @@ test.describe("Studio document compiler", () => {
     expect((await previewResponse).ok()).toBe(true);
 
     await expect(page.locator("#revision-status")).toHaveText(
-      `Revision ${initialRevision}`,
+      `Revision ${initialRevision + 1}`,
     );
     await expect(page.locator("#preview-status")).toHaveText("Private draft");
     await expect(page.locator('[data-spaday-studio-id="headline"]')).toHaveText(
@@ -95,7 +112,7 @@ test.describe("Studio document compiler", () => {
     );
     await page.getByRole("button", { name: "Commit" }).click();
     await expect(page.locator("#revision-status")).toHaveText(
-      `Revision ${initialRevision + 1}`,
+      `Revision ${initialRevision + 2}`,
     );
     await expect(
       page.getByRole("link", { name: "Export Python" }),
@@ -111,7 +128,7 @@ test.describe("Studio document compiler", () => {
     await expect(page.locator("#preview-status")).toHaveText("Private draft");
     await page.getByRole("button", { name: "Commit" }).click();
     await expect(page.locator("#revision-status")).toHaveText(
-      `Revision ${initialRevision + 2}`,
+      `Revision ${initialRevision + 3}`,
     );
     await expect(
       page.locator("#canvas p", { hasText: "New p" }).last(),
@@ -133,7 +150,7 @@ test.describe("Studio document compiler", () => {
     await page.getByRole("button", { name: "Preview changes" }).click();
     await page.getByRole("button", { name: "Commit" }).click();
     await expect(page.locator("#revision-status")).toHaveText(
-      `Revision ${initialRevision + 3}`,
+      `Revision ${initialRevision + 4}`,
     );
     await expect(page.locator("#canvas input").last()).toBeChecked();
   });

@@ -702,7 +702,18 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
     return control;
   };
 
-  const renderProperties = (node: StudioNode) => {
+  const renderProperties = (node: StudioNode, preserveDirty = false) => {
+    const dirtyValues = new Map<string, { value: string; present: string }>();
+    if (preserveDirty) {
+      for (const control of propertyFields.querySelectorAll<PropertyControl>(
+        ".studio-property-control[data-dirty='true']",
+      )) {
+        dirtyValues.set(control.dataset.studioProp!, {
+          value: control.value,
+          present: control.dataset.present!,
+        });
+      }
+    }
     const component = schemaFor(node.tag);
     summary.textContent =
       component?.summary ??
@@ -750,7 +761,14 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
         });
         heading.append(unset);
       }
-      field.append(heading, propertyControl(property, value));
+      const control = propertyControl(property, value);
+      const dirty = dirtyValues.get(property.name);
+      if (dirty) {
+        control.value = dirty.value;
+        control.dataset.present = dirty.present;
+        control.dataset.dirty = "true";
+      }
+      field.append(heading, control);
       propertyFields.append(field);
     }
     activateBuffer(
@@ -1167,6 +1185,7 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
     if (!active) return;
     const selected = findNode(active.root, id);
     if (!selected) return;
+    const preserveDirty = selectedId === id;
     selectedId = id;
     canvas
       .querySelectorAll(".spaday-studio-selected")
@@ -1177,7 +1196,7 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
     empty.hidden = true;
     form.hidden = false;
     label.value = `${selected.tag} · ${selected.id}`;
-    renderProperties(selected);
+    renderProperties(selected, preserveDirty);
     const component = schemaFor(selected.tag);
     const slots = new Set([
       "default",
@@ -1302,7 +1321,13 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
       showMessage("No property changes to apply.");
       return;
     }
-    void postOperations(operations);
+    void postOperations(operations).then((accepted) => {
+      if (!accepted) return;
+      for (const control of propertyFields.querySelectorAll<PropertyControl>(
+        ".studio-property-control[data-dirty='true']",
+      ))
+        control.dataset.dirty = "false";
+    });
   });
 
   applyState.addEventListener("click", () => {
