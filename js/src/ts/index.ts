@@ -259,6 +259,7 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
   const bufferKeys = new Map<JsonEditor, string>();
   const bufferInitial = new Map<JsonEditor, string>();
   const initializedBufferKeys = new Set<string>();
+  const pendingPropertyValues = new Map<string, Map<string, string>>();
   let bufferModelId: number | undefined;
   let bufferValues: Record<string, string> = {};
   let renderBehaviorControls = (_node: StudioNode) => {};
@@ -657,6 +658,7 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
   const propertyControl = (
     property: PropertySchema,
     value: JsonValue | undefined,
+    onEdit: (value: string) => void,
   ): PropertyControl => {
     let control: PropertyControl;
     if (property.kind === "boolean" || property.kind === "enum") {
@@ -701,21 +703,15 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
     control.dataset.dirty = "false";
     const markDirty = () => {
       control.dataset.dirty = "true";
+      onEdit(control.value);
     };
     control.addEventListener("input", markDirty);
     control.addEventListener("change", markDirty);
     return control;
   };
 
-  const renderProperties = (node: StudioNode, preserveDirty = false) => {
-    const dirtyValues = new Map<string, string>();
-    if (preserveDirty) {
-      for (const control of propertyFields.querySelectorAll<PropertyControl>(
-        ".studio-property-control[data-dirty='true']",
-      )) {
-        dirtyValues.set(control.dataset.studioProp!, control.value);
-      }
-    }
+  const renderProperties = (node: StudioNode) => {
+    const pending = pendingPropertyValues.get(node.id);
     const component = schemaFor(node.tag);
     summary.textContent =
       component?.summary ??
@@ -757,16 +753,21 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
         unset.type = "button";
         unset.textContent = "Unset";
         unset.addEventListener("click", () => {
+          pending?.delete(property.name);
           void postOperations([
             { kind: "unset_prop", id: node.id, name: property.name },
           ]);
         });
         heading.append(unset);
       }
-      const control = propertyControl(property, value);
-      const dirty = dirtyValues.get(property.name);
-      if (dirty !== undefined) {
-        control.value = dirty;
+      const control = propertyControl(property, value, (next) => {
+        const edits =
+          pendingPropertyValues.get(node.id) ?? new Map<string, string>();
+        edits.set(property.name, next);
+        pendingPropertyValues.set(node.id, edits);
+      });
+      if (pending?.has(property.name)) {
+        control.value = pending.get(property.name)!;
         control.dataset.dirty = "true";
       }
       field.append(heading, control);
@@ -1186,7 +1187,6 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
     if (!active) return;
     const selected = findNode(active.root, id);
     if (!selected) return;
-    const preserveDirty = selectedId === id;
     selectedId = id;
     canvas
       .querySelectorAll(".spaday-studio-selected")
@@ -1197,7 +1197,7 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
     empty.hidden = true;
     form.hidden = false;
     label.value = `${selected.tag} · ${selected.id}`;
-    renderProperties(selected, preserveDirty);
+    renderProperties(selected);
     const component = schemaFor(selected.tag);
     const slots = new Set([
       "default",
@@ -1320,11 +1320,19 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
       return;
     }
     if (!operations.length) {
+      pendingPropertyValues.delete(selectedId);
+      for (const control of propertyFields.querySelectorAll<PropertyControl>(
+        ".studio-property-control[data-dirty='true']",
+      ))
+        control.dataset.dirty = "false";
       showMessage("No property changes to apply.");
       return;
     }
+    const submittedId = selectedId;
     void postOperations(operations).then((accepted) => {
       if (!accepted) return;
+      pendingPropertyValues.delete(submittedId);
+      if (selectedId !== submittedId) return;
       for (const control of propertyFields.querySelectorAll<PropertyControl>(
         ".studio-property-control[data-dirty='true']",
       ))

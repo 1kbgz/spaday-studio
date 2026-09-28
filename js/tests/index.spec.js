@@ -97,6 +97,9 @@ test.describe("Studio document compiler", () => {
         response.url().endsWith("/api/drafts"),
     );
     await page.getByRole("button", { name: "Preview changes" }).click();
+    await expect(page.locator("#studio-message")).toHaveText(
+      "Private draft updated. Commit when the preview is ready.",
+    );
     const previewResult = await previewResponse;
     expect(previewResult.ok()).toBe(true);
     const previewDocument = await previewResult.json();
@@ -388,6 +391,9 @@ test.describe("Studio document compiler", () => {
         response.url().endsWith("/api/drafts"),
     );
     await page.getByRole("button", { name: "Preview changes" }).click();
+    await expect(page.locator("#studio-message")).toHaveText(
+      "Private draft updated. Commit when the preview is ready.",
+    );
     expect((await previewResponse).ok()).toBe(true);
     await expect(page.locator("#preview-status")).toHaveText("Private draft");
 
