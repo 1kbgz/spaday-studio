@@ -43,6 +43,14 @@ test.describe("Studio document compiler", () => {
   test("previews privately and commits without remounting the canvas", async ({
     page,
   }) => {
+    let releaseDraftRecovery;
+    const draftRecoveryReleased = new Promise((resolve) => {
+      releaseDraftRecovery = resolve;
+    });
+    await page.route("**/api/drafts?actor_id=*", async (route) => {
+      await draftRecoveryReleased;
+      await route.continue();
+    });
     await page.goto("http://127.0.0.1:8020");
     await expect(page.locator("#connection-status")).toHaveText("Live");
     const initialRevision = Number(
@@ -56,6 +64,16 @@ test.describe("Studio document compiler", () => {
     await page
       .locator('[data-studio-prop="textContent"]')
       .fill("Ship the interface while it is running.");
+    const recovered = page.waitForResponse(
+      (response) =>
+        response.request().method() === "GET" &&
+        response.url().includes("/api/drafts?actor_id="),
+    );
+    releaseDraftRecovery();
+    await recovered;
+    await expect(page.locator('[data-studio-prop="textContent"]')).toHaveValue(
+      "Ship the interface while it is running.",
+    );
     await page.getByRole("button", { name: "Preview changes" }).click();
 
     await expect(page.locator("#revision-status")).toHaveText(

@@ -605,17 +605,23 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
   discardDraft.addEventListener("click", () => void finishDraft("discard"));
 
   const recoverDraft = async () => {
+    const draftAtStart = draft;
     const response = await fetch(
       `/api/drafts?actor_id=${encodeURIComponent(actorId)}`,
     );
-    if (response.status === 204) draft = undefined;
+    let recovered: typeof draft;
+    if (response.status === 204) recovered = undefined;
     else if (response.ok)
-      draft = (await response.json()) as {
+      recovered = (await response.json()) as {
         preview_id: string;
         base_revision: number;
         document: StudioDocument;
       };
-    if (state) render();
+    else return;
+    if (draft !== draftAtStart) return;
+    draft = recovered;
+    if (state && (draftAtStart !== undefined || recovered !== undefined))
+      render();
   };
 
   const inferredProperty = (
