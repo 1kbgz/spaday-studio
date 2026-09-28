@@ -52,6 +52,16 @@ test.describe("Studio document compiler", () => {
       await route.continue();
     });
     await page.goto("http://127.0.0.1:8020");
+    await expect(
+      page.getByRole("button", { name: "Preview changes" }),
+    ).toBeDisabled();
+    const recovered = page.waitForResponse(
+      (response) =>
+        response.request().method() === "GET" &&
+        response.url().includes("/api/drafts?actor_id="),
+    );
+    releaseDraftRecovery();
+    await recovered;
     await expect(page.locator("#connection-status")).toHaveText("Live");
     const initialRevision = Number(
       (await page.locator("#revision-status").textContent()).match(/\d+/)[0],
@@ -64,17 +74,13 @@ test.describe("Studio document compiler", () => {
     await page
       .locator('[data-studio-prop="textContent"]')
       .fill("Ship the interface while it is running.");
-    const recovered = page.waitForResponse(
+    const previewResponse = page.waitForResponse(
       (response) =>
-        response.request().method() === "GET" &&
-        response.url().includes("/api/drafts?actor_id="),
-    );
-    releaseDraftRecovery();
-    await recovered;
-    await expect(page.locator('[data-studio-prop="textContent"]')).toHaveValue(
-      "Ship the interface while it is running.",
+        response.request().method() === "POST" &&
+        response.url().endsWith("/api/drafts"),
     );
     await page.getByRole("button", { name: "Preview changes" }).click();
+    expect((await previewResponse).ok()).toBe(true);
 
     await expect(page.locator("#revision-status")).toHaveText(
       `Revision ${initialRevision}`,
@@ -355,7 +361,13 @@ test.describe("Studio document compiler", () => {
     await page
       .locator('[data-studio-prop="textContent"]')
       .fill("Recovered draft");
+    const previewResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        response.url().endsWith("/api/drafts"),
+    );
     await page.getByRole("button", { name: "Preview changes" }).click();
+    expect((await previewResponse).ok()).toBe(true);
     await expect(page.locator("#preview-status")).toHaveText("Private draft");
 
     await page.reload();

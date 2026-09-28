@@ -263,10 +263,15 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
   let bufferValues: Record<string, string> = {};
   let renderBehaviorControls = (_node: StudioNode) => {};
   let accessRole: "read" | "edit" | "admin" = "read";
+  let catalogReady = false;
+  let accessReady = false;
+  let draftRecoveryReady = false;
   let historyRequest = 0;
+  const isReady = () =>
+    Boolean(state && catalogReady && accessReady && draftRecoveryReady);
 
   const configureAccess = () => {
-    const readOnly = accessRole === "read";
+    const readOnly = accessRole === "read" || !isReady();
     for (const control of [
       componentType,
       componentSlot,
@@ -617,11 +622,14 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
         base_revision: number;
         document: StudioDocument;
       };
-    else return;
-    if (draft !== draftAtStart) return;
-    draft = recovered;
-    if (state && (draftAtStart !== undefined || recovered !== undefined))
-      render();
+    else {
+      draftRecoveryReady = true;
+      if (state) render();
+      return;
+    }
+    draftRecoveryReady = true;
+    if (draft === draftAtStart) draft = recovered;
+    if (state) render();
   };
 
   const inferredProperty = (
@@ -1245,7 +1253,7 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
       bufferKey("state"),
       JSON.stringify(active.state, null, 2),
     );
-    connection.textContent = "Live";
+    connection.textContent = isReady() ? "Live" : "Loading";
     if (pendingSelection && findNode(active.root, pendingSelection)) {
       selectedId = pendingSelection;
       pendingSelection = undefined;
@@ -1487,8 +1495,9 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
     .then(async (response) => {
       if (!response.ok) throw new Error("Component catalog failed to load.");
       catalog = (await response.json()) as ComponentCatalog;
+      catalogReady = true;
       renderComponentOptions();
-      if (selectedId) select(selectedId);
+      if (state) render();
     })
     .catch((error: unknown) => {
       showMessage(
@@ -1506,6 +1515,7 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
         role: "read" | "edit" | "admin";
       };
       accessRole = access.role;
+      accessReady = true;
       if (state) render();
       else configureAccess();
       void refreshHistory();
