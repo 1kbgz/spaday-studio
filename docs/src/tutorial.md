@@ -36,16 +36,31 @@ Replace its text with:
 Ship the interface while it is running.
 ```
 
-Click **Apply properties**. The revision changes to `Revision 1`, and the live headline changes without the
-canvas flashing or reloading.
+Click **Preview changes**. The headline changes, but the header still shows `Revision 0` and marks the
+canvas as a private draft. Click **Commit**. The header changes to `Revision 1`; unaffected canvas elements
+keep their DOM identity throughout both updates.
 
 ## Make a structural edit
 
 Select `main · app` at the top of the component tree. Choose `p · <p>` under the `html` catalog and click
-**Add component**. A new paragraph appears at the bottom of the canvas, and the revision advances again.
+**Add component**. Choose the destination slot when the selected component exposes named slots. A new
+paragraph appears at the bottom of the draft canvas. Click **Commit** to advance the revision.
 
-Select the new paragraph and click **Move up** or **Remove**. Each accepted operation arrives as a new
-authoritative transports revision and is reconciled through spaday's keyed tree patch.
+Select the new paragraph and click **Move up** or **Remove**. You can stack several operations in the same
+private draft before committing it. Each accepted document arrives as a new authoritative transports
+revision and is reconciled through Spaday's keyed tree patch.
+
+## Add runtime behavior
+
+Select a component and expand **Bindings** or **Events**. Add a direct field binding, field toggle, or
+field assignment for common cases. Open **Advanced JSON** for computed bindings, composed actions, and the
+complete wire surface. The JSON editors use transports' character-level sequence CRDT. Another Studio tab
+on the same revision sees edits and cursor positions as they happen. Invalid intermediate JSON stays in the
+buffer and cannot enter the project document.
+
+Use **Runtime state** for the initial Store fields referenced by bindings and actions. **Preview state**
+validates the JSON and stages semantic `set_state` and `unset_state` operations. The canvas keeps one Store
+instance while the tree changes, so two-way bindings and actions can update it normally.
 
 ## Export the accepted application
 

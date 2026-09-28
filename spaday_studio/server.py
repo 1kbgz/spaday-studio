@@ -11,9 +11,10 @@ from pathlib import Path
 
 import transports
 from pydantic import ValidationError
-from spaday import resolve_component_packages
+from spaday import action_schema, binding_schema, expr_schema, resolve_component_packages
 from spaday.backends.starlette import mount
 from spaday.packages import package_url_prefix
+from spaday_codemirror import package as codemirror_package
 
 from .catalog import discover_catalog
 from .example import document as example_document
@@ -31,6 +32,30 @@ def _expand_package_references(packages: Sequence[str]) -> tuple[str, ...]:
         return references
     explicit = tuple(reference for reference in references if reference != "*")
     return (*explicit, *(name for name in discover_catalog().available_packages if name not in explicit))
+
+
+def _prune_buffer_revisions(
+    hub: transports.Hub,
+    model_id: int,
+    *,
+    current_revision: int,
+    active_revisions: set[int],
+) -> list[str]:
+    buffers = transports.from_value(hub.snapshot_shared(model_id)["value"], dict)
+    removed = []
+    for key in buffers:
+        revision, separator, _surface = key.partition(":")
+        if not separator or not revision.isdigit():
+            continue
+        number = int(revision)
+        if number < current_revision and number not in active_revisions:
+            removed.append(key)
+    if removed:
+        hub.mutate_shared_crdt(
+            model_id,
+            [{"kind": "map_remove", "path": [], "key": key} for key in sorted(removed)],
+        )
+    return sorted(removed)
 
 
 def create_app(
@@ -53,8 +78,12 @@ def create_app(
             project_file.save(initial_document)
     studio = StudioSession(initial_document, save_document=project_file.save if project_file is not None else None)
     package_references = _expand_package_references(packages)
-    selected_packages = resolve_component_packages(package_references)
-    component_catalog = discover_catalog(list(package_references))
+    catalog_references = ("spaday_codemirror:package", *(reference for reference in package_references if reference != "codemirror"))
+    selected_packages = (
+        codemirror_package,
+        *resolve_component_packages(tuple(reference for reference in package_references if reference != "codemirror")),
+    )
+    component_catalog = discover_catalog(list(catalog_references))
     package_tags = []
     for selected_package in selected_packages:
         prefix = package_url_prefix(selected_package)
@@ -65,6 +94,17 @@ def create_app(
     transport_session = transports.Session()
     model_id = transport_session.host(studio.state)
     broadcaster = transports.Server(transport_session)
+    buffer_hub = transports.Hub(key=lambda websocket: websocket.path_params["actor_id"])
+    buffer_id = buffer_hub.share(
+        {},
+        crdt_spec=transports.CrdtSpec(
+            {
+                "kind": "map",
+                "values": {"kind": "sequence", "materialization": "string"},
+            }
+        ),
+    )
+    buffer_endpoint = transports.ws_endpoint(buffer_hub)
     mcp = create_mcp(studio, component_catalog)
     mcp_app = mcp.streamable_http_app(streamable_http_path="/")
 
@@ -76,6 +116,9 @@ def create_app(
 
     async def catalog(_request):
         return JSONResponse(component_catalog.model_dump(mode="json"))
+
+    async def behavior_schema(_request):
+        return JSONResponse({"action": action_schema(), "binding": binding_schema(), "expr": expr_schema()})
 
     async def python_export(_request):
         return PlainTextResponse(
@@ -91,18 +134,67 @@ def create_app(
         except (KeyError, IndexError, TypeError, ValueError, ValidationError) as error:
             status = 409 if isinstance(error, (RevisionConflict, PreviewConflict)) else 422
             return JSONResponse({"error": str(error)}, status_code=status)
+        cleanup_buffers()
         return JSONResponse(result)
+
+    async def preview_operations(request):
+        try:
+            body = await request.json()
+            if body.get("preview_id"):
+                result = studio.update_preview(body["preview_id"], body["operations"], owner=body["actor_id"])
+            else:
+                result = studio.preview(body["expected_revision"], body["operations"], owner=body["actor_id"])
+        except (KeyError, IndexError, TypeError, ValueError, ValidationError) as error:
+            status = 409 if isinstance(error, (RevisionConflict, PreviewConflict)) else 422
+            return JSONResponse({"error": str(error)}, status_code=status)
+        cleanup_buffers()
+        return JSONResponse(result)
+
+    async def commit_preview(request):
+        try:
+            result = studio.commit_preview(request.path_params["preview_id"], owner=(await request.json())["actor_id"])
+        except (KeyError, IndexError, TypeError, ValueError, ValidationError) as error:
+            status = 409 if isinstance(error, (RevisionConflict, PreviewConflict)) else 422
+            return JSONResponse({"error": str(error)}, status_code=status)
+        cleanup_buffers()
+        return JSONResponse(result)
+
+    async def discard_preview(request):
+        try:
+            result = studio.discard_preview(request.path_params["preview_id"], owner=(await request.json())["actor_id"])
+        except (KeyError, IndexError, TypeError, ValueError, ValidationError) as error:
+            status = 409 if isinstance(error, (RevisionConflict, PreviewConflict)) else 422
+            return JSONResponse({"error": str(error)}, status_code=status)
+        cleanup_buffers()
+        return JSONResponse(result)
+
+    def cleanup_buffers() -> None:
+        _prune_buffer_revisions(
+            buffer_hub,
+            buffer_id,
+            current_revision=studio.state.revision,
+            active_revisions=studio.draft_base_revisions,
+        )
+
+    async def buffers(websocket):
+        actor_id = websocket.path_params["actor_id"]
+        buffer_hub.subscribe(actor_id, buffer_id, transports.WRITE)
+        await buffer_endpoint(websocket)
 
     @asynccontextmanager
     async def lifespan(_app: Starlette) -> AsyncIterator[None]:
         sync_task = asyncio.create_task(transports.autosync(broadcaster))
+        buffer_task = asyncio.create_task(transports.autosync(buffer_hub))
         try:
             async with mcp.session_manager.run():
                 yield
         finally:
             sync_task.cancel()
+            buffer_task.cancel()
             with suppress(asyncio.CancelledError):
                 await sync_task
+            with suppress(asyncio.CancelledError):
+                await buffer_task
 
     app = Starlette(lifespan=lifespan)
     mount(
@@ -113,10 +205,15 @@ def create_app(
         packages=["spaday_studio:package", *selected_packages],
         routes=[
             WebSocketRoute("/ws", transports.ws_endpoint(broadcaster)),
+            WebSocketRoute("/ws/buffers/{actor_id:str}", buffers),
             Route("/api/project", project),
             Route("/api/catalog", catalog),
+            Route("/api/schema/behavior", behavior_schema),
             Route("/api/export/python", python_export),
             Route("/api/operations", operations, methods=["POST"]),
+            Route("/api/drafts", preview_operations, methods=["POST"]),
+            Route("/api/drafts/{preview_id:str}/commit", commit_preview, methods=["POST"]),
+            Route("/api/drafts/{preview_id:str}/discard", discard_preview, methods=["POST"]),
         ],
         title="spaday Studio",
     )

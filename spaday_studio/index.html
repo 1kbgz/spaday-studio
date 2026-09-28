@@ -15,6 +15,8 @@
       </div>
       <div class="studio-status">
         <a class="studio-export" href="/api/export/python" download="spaday_app.py">Export Python</a>
+        <button type="button" id="discard-draft" hidden>Discard</button>
+        <button type="button" id="commit-draft" hidden>Commit</button>
         <span id="preview-status">Canonical</span>
         <span id="revision-status">Connecting…</span>
       </div>
@@ -28,6 +30,10 @@
           <label>
             Insert into selection
             <select id="component-type"></select>
+          </label>
+          <label>
+            Slot
+            <select id="component-slot"><option value="default">default</option></select>
           </label>
           <button type="button" id="add-component">Add component</button>
           <span id="catalog-note"></span>
@@ -47,12 +53,40 @@
           <label>Component <input id="component-label" readonly /></label>
           <p id="component-summary"></p>
           <div id="property-fields"></div>
-          <button type="submit" class="studio-primary">Apply properties</button>
+          <details>
+            <summary>Bindings</summary>
+            <p class="studio-editor-help">Bind common component properties directly to Store fields.</p>
+            <div id="binding-controls" class="studio-behavior-controls"></div>
+            <button type="button" id="add-binding">Add binding</button>
+            <details class="studio-advanced-editor">
+              <summary>Advanced JSON</summary>
+              <p id="binding-json-help" class="studio-editor-help">Edit the complete validated binding map.</p>
+              <spaday-codemirror id="bindings-editor" language="json" line_numbers="false"></spaday-codemirror>
+            </details>
+          </details>
+          <details>
+            <summary>Events</summary>
+            <p id="event-help" class="studio-editor-help"></p>
+            <div id="event-controls" class="studio-behavior-controls"></div>
+            <button type="button" id="add-event">Add event</button>
+            <details class="studio-advanced-editor">
+              <summary>Advanced JSON</summary>
+              <p id="event-json-help" class="studio-editor-help">Edit the complete validated action map.</p>
+              <spaday-codemirror id="events-editor" language="json" line_numbers="false"></spaday-codemirror>
+            </details>
+          </details>
+          <button type="submit" class="studio-primary">Preview changes</button>
           <div class="studio-button-row">
             <button type="button" id="move-up">Move up</button>
             <button type="button" id="remove-component">Remove</button>
           </div>
         </form>
+        <details class="studio-state-card">
+          <summary>Runtime state</summary>
+          <p class="studio-editor-help">Initial Store fields used by bindings and actions.</p>
+          <spaday-codemirror id="state-editor" language="json" line_numbers="false"></spaday-codemirror>
+          <button type="button" id="apply-state">Preview state</button>
+        </details>
         <div class="studio-agent-card">
           <strong>Agent endpoint</strong>
           <code>/mcp</code>

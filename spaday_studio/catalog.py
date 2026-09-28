@@ -29,6 +29,8 @@ class ComponentSchema(BaseModel):
     class_name: str
     summary: str | None = None
     props: list[PropertySchema] = Field(default_factory=list)
+    events: list[str] = Field(default_factory=list)
+    slots: list[str] = Field(default_factory=list)
 
 
 class ComponentSummary(BaseModel):
@@ -108,6 +110,21 @@ def _module_components(package: str, module: types.ModuleType) -> list[Component
 
 
 def _class_schema(package: str, name: str, component_class: type[Component]) -> ComponentSchema:
+    if component_class.schema is not None:
+        props = {
+            prop.name: PropertySchema(name=prop.name, kind=prop.kind, choices=list(prop.choices))
+            for prop in (*component_class.schema.props, *component_class.schema.fields)
+        }
+        props.update({prop.name: _copy_prop(prop) for prop in _COMMON_PROPS if prop.name not in props})
+        return ComponentSchema(
+            package=package,
+            tag=component_class.tag,
+            class_name=name,
+            summary=component_class.schema.summary,
+            props=sorted(props.values(), key=lambda prop: prop.name),
+            events=list(component_class.schema.events),
+            slots=list(component_class.schema.slots),
+        )
     signature = inspect.signature(component_class.__init__)
     try:
         hints = get_type_hints(component_class.__init__)
@@ -199,6 +216,8 @@ def _html_schema(tag: str, props: list[PropertySchema] | None = None) -> Compone
         tag=tag,
         class_name=tag,
         props=ordered_props,
+        events=["click", "change", "input"],
+        slots=[] if tag == "input" else ["default"],
     )
 
 

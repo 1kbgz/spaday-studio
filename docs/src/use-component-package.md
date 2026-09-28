@@ -31,11 +31,13 @@ The quotes prevent your shell from expanding `*` into filenames before Studio re
 ## Insert and configure a component
 
 Select a container in the component tree. In **Insert into selection**, open the `webawesome` group,
-choose `WaButton · <wa-button>`, and click **Add component**.
+choose `WaButton · <wa-button>`, select one of the parent's declared named slots, and click **Add
+component**.
 
 Select the inserted button. Its inspector controls come from the typed Python constructor: booleans use
 true/false selectors, literal choices use enumerated selectors, numbers use number inputs, and structured
-values use JSON text areas. Change a property and click **Apply properties**.
+values use JSON text areas. The catalog also supplies declared event and slot names. Change a property and
+click **Preview changes**, then commit the draft.
 
 Use **Unset** beside an authored property to remove it instead of assigning another value. Studio submits
 the resulting `set_prop` or `unset_prop` operation through the same revision-checked editing path as a

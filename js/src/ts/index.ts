@@ -11,19 +11,20 @@ export interface StudioNode {
   tag: string;
   key?: string | null;
   props: Record<string, JsonValue>;
+  bindings: Record<string, Record<string, JsonValue>>;
+  events: Record<string, Record<string, JsonValue>>;
   slots: Record<string, StudioNode[]>;
 }
 
 interface StudioDocument {
   title: string;
+  state: Record<string, JsonValue>;
   root: StudioNode;
 }
 
 interface StudioState {
   revision: number;
   document: StudioDocument;
-  preview: StudioDocument | null;
-  preview_id: string | null;
 }
 
 type PropertyKind = "string" | "boolean" | "number" | "enum" | "json";
@@ -40,6 +41,8 @@ interface ComponentSchema {
   class_name: string;
   summary?: string | null;
   props: PropertySchema[];
+  events: string[];
+  slots: string[];
 }
 
 interface ComponentCatalog {
@@ -58,7 +61,20 @@ interface WireNode {
   key?: string;
   props?: Record<string, unknown>;
   bindings?: Record<string, unknown>;
+  events?: Record<string, unknown>;
   slots?: Record<string, WireNode[]>;
+}
+
+interface JsonEditor extends HTMLElement {
+  doc: string;
+  selection: { anchor: number; head: number } | null;
+  remote_cursors: Array<{
+    peer: string;
+    anchor: number;
+    head?: number;
+    label?: string;
+    color?: string;
+  }>;
 }
 
 interface RuntimeStore {
@@ -69,11 +85,18 @@ interface RuntimeModule {
   Store: new (initial?: Record<string, unknown>) => RuntimeStore;
   mount(container: Element, tree: WireNode, store?: RuntimeStore): Element;
   diff(oldTree: string, newTree: string): string;
-  applyPatch(root: Element, patch: unknown): Element;
+  applyPatch(root: Element, patch: unknown, store?: RuntimeStore): Element;
 }
 
 interface ClientMirror {
   onChange(listener: (change: { id: number }) => void): () => void;
+  onAwareness(
+    listener: (change: { id: number; peer: string; state: unknown }) => void,
+  ): () => void;
+  awareness(id: number): ReadonlyMap<string, unknown>;
+  ids(): number[];
+  proposeCrdt(id: number, mutations: unknown[]): boolean;
+  setAwareness(id: number, state: unknown | null): boolean;
   value(id: number): unknown;
   run(url: string, options?: { onMessage?: () => void }): { stop(): void };
 }
@@ -115,6 +138,10 @@ export function compileNode(
     tag: node.tag,
     key: node.key ?? node.id,
     ...(Object.keys(props).length ? { props } : {}),
+    ...(Object.keys(node.bindings ?? {}).length
+      ? { bindings: node.bindings }
+      : {}),
+    ...(Object.keys(node.events ?? {}).length ? { events: node.events } : {}),
     ...(Object.keys(slots).length ? { slots } : {}),
   };
 }
@@ -150,16 +177,17 @@ function flattenTree(
   selectedId: string | undefined,
   depth = 0,
   items: TreeItem[] = [],
+  slot?: string,
 ): TreeItem[] {
   items.push({
     id: node.id,
-    label: `${node.tag}  ${node.id}`,
+    label: `${slot ? `[${slot}] ` : ""}${node.tag}  ${node.id}`,
     className: selectedId === node.id ? "studio-tree-selected" : "",
     style: `padding-left: ${8 + depth * 14}px`,
   });
-  for (const children of Object.values(node.slots)) {
+  for (const [name, children] of Object.entries(node.slots)) {
     for (const child of children) {
-      flattenTree(child, selectedId, depth + 1, items);
+      flattenTree(child, selectedId, depth + 1, items, name);
     }
   }
   return items;
@@ -186,17 +214,192 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
   const preview = requiredElement<HTMLElement>("#preview-status");
   const connection = requiredElement<HTMLElement>("#connection-status");
   const componentType = requiredElement<HTMLSelectElement>("#component-type");
+  const componentSlot = requiredElement<HTMLSelectElement>("#component-slot");
   const addComponent = requiredElement<HTMLButtonElement>("#add-component");
   const catalogNote = requiredElement<HTMLElement>("#catalog-note");
   const moveUp = requiredElement<HTMLButtonElement>("#move-up");
   const remove = requiredElement<HTMLButtonElement>("#remove-component");
+  const commitDraft = requiredElement<HTMLButtonElement>("#commit-draft");
+  const discardDraft = requiredElement<HTMLButtonElement>("#discard-draft");
+  const bindingControls = requiredElement<HTMLElement>("#binding-controls");
+  const eventControls = requiredElement<HTMLElement>("#event-controls");
+  const addBinding = requiredElement<HTMLButtonElement>("#add-binding");
+  const addEvent = requiredElement<HTMLButtonElement>("#add-event");
+  const bindingJsonHelp = requiredElement<HTMLElement>("#binding-json-help");
+  const eventJsonHelp = requiredElement<HTMLElement>("#event-json-help");
+  const bindingsEditor = requiredElement<JsonEditor>("#bindings-editor");
+  const eventsEditor = requiredElement<JsonEditor>("#events-editor");
+  const stateEditor = requiredElement<JsonEditor>("#state-editor");
+  const eventHelp = requiredElement<HTMLElement>("#event-help");
+  const applyState = requiredElement<HTMLButtonElement>("#apply-state");
 
   let state: StudioState | undefined;
+  let draft:
+    | { preview_id: string; base_revision: number; document: StudioDocument }
+    | undefined;
   let catalog: ComponentCatalog | undefined;
   let currentTree: WireNode | undefined;
   let root: Element | undefined;
   let selectedId: string | undefined;
   let pendingSelection: string | undefined;
+  let canvasStore: RuntimeStore | undefined;
+  let canvasState: Record<string, JsonValue> = {};
+  const actorId =
+    sessionStorage.getItem("spaday-studio-actor") ??
+    globalThis.crypto?.randomUUID?.() ??
+    `${Date.now()}-${Math.random()}`;
+  sessionStorage.setItem("spaday-studio-actor", actorId);
+  const actorColor = `hsl(${[...actorId].reduce((sum, character) => sum + character.charCodeAt(0), 0) % 360} 65% 45%)`;
+  const bufferKeys = new Map<JsonEditor, string>();
+  const bufferInitial = new Map<JsonEditor, string>();
+  const initializedBufferKeys = new Set<string>();
+  let bufferModelId: number | undefined;
+  let bufferValues: Record<string, string> = {};
+  let renderBehaviorControls = (_node: StudioNode) => {};
+
+  const bufferKey = (surface: string, nodeId?: string) =>
+    `${draft?.base_revision ?? state?.revision ?? 0}:${nodeId ? `${nodeId}:` : ""}${surface}`;
+
+  const ensureBuffer = (editor: JsonEditor) => {
+    const key = bufferKeys.get(editor);
+    const initial = bufferInitial.get(editor);
+    if (!key || initial === undefined || bufferModelId === undefined) return;
+    if (!(key in bufferValues)) {
+      if (initializedBufferKeys.has(key)) return;
+      initializedBufferKeys.add(key);
+      bufferValues[key] = initial;
+      bufferClient.proposeCrdt(bufferModelId, [
+        { kind: "map_set", path: [], key, value: initial },
+      ]);
+    } else initializedBufferKeys.add(key);
+    editor.doc = bufferValues[key];
+  };
+
+  const activateBuffer = (editor: JsonEditor, key: string, initial: string) => {
+    bufferKeys.set(editor, key);
+    bufferInitial.set(editor, initial);
+    ensureBuffer(editor);
+    if (!(key in bufferValues)) editor.doc = initial;
+  };
+
+  const spliceText = (current: string, next: string) => {
+    const before = Array.from(current);
+    const after = Array.from(next);
+    let start = 0;
+    while (
+      start < before.length &&
+      start < after.length &&
+      before[start] === after[start]
+    )
+      start += 1;
+    let end = 0;
+    while (
+      end < before.length - start &&
+      end < after.length - start &&
+      before[before.length - 1 - end] === after[after.length - 1 - end]
+    )
+      end += 1;
+    return {
+      index: start,
+      delete_count: before.length - start - end,
+      values: after.slice(start, after.length - end),
+    };
+  };
+
+  const publishCursor = (editor: JsonEditor) => {
+    const key = bufferKeys.get(editor);
+    if (!key || bufferModelId === undefined || !editor.selection) return;
+    bufferClient.setAwareness(bufferModelId, {
+      buffer: key,
+      selection: editor.selection,
+      name: actorId.slice(0, 8),
+      color: actorColor,
+    });
+  };
+
+  const renderRemoteCursors = () => {
+    if (bufferModelId === undefined) return;
+    for (const [editor, key] of bufferKeys) {
+      editor.remote_cursors = [...bufferClient.awareness(bufferModelId)]
+        .filter(([, value]) => {
+          const candidate = value as {
+            buffer?: unknown;
+            selection?: unknown;
+          } | null;
+          return (
+            candidate?.buffer === key &&
+            candidate.selection &&
+            typeof candidate.selection === "object"
+          );
+        })
+        .map(([peer, value]) => {
+          const candidate = value as {
+            selection: { anchor: number; head?: number };
+            name?: string;
+            color?: string;
+          };
+          return {
+            peer,
+            ...candidate.selection,
+            label: candidate.name,
+            color: candidate.color,
+          };
+        });
+    }
+  };
+
+  const writeBuffer = (
+    editor: JsonEditor,
+    next: string,
+    updateEditor = false,
+  ) => {
+    const key = bufferKeys.get(editor);
+    if (!key || bufferModelId === undefined) return;
+    const current = bufferValues[key] ?? bufferInitial.get(editor) ?? "";
+    const splice = spliceText(current, next);
+    bufferValues[key] = next;
+    if (updateEditor) editor.doc = next;
+    if (splice.delete_count || splice.values.length)
+      bufferClient.proposeCrdt(bufferModelId, [
+        {
+          kind: "sequence_splice",
+          path: [{ kind: "key", key }],
+          ...splice,
+        },
+      ]);
+    publishCursor(editor);
+  };
+
+  const handleBufferEdit = (editor: JsonEditor, event: Event) => {
+    writeBuffer(editor, (event as CustomEvent<{ doc: string }>).detail.doc);
+  };
+
+  for (const editor of [bindingsEditor, eventsEditor, stateEditor]) {
+    editor.addEventListener("editor-change", (event) =>
+      handleBufferEdit(editor, event),
+    );
+    editor.addEventListener("editor-selection", () => publishCursor(editor));
+  }
+
+  const bufferClient = new transport.Client();
+  bufferClient.onChange((change) => {
+    bufferModelId = change.id;
+    bufferValues = transport.fromValue(bufferClient.value(change.id)) as Record<
+      string,
+      string
+    >;
+    for (const editor of bufferKeys.keys()) ensureBuffer(editor);
+    const active = draft?.document ?? state?.document;
+    const selected =
+      active && selectedId ? findNode(active.root, selectedId) : undefined;
+    if (selected) renderBehaviorControls(selected);
+    renderRemoteCursors();
+  });
+  bufferClient.onAwareness(() => renderRemoteCursors());
+  const bufferScheme = location.protocol === "https:" ? "wss" : "ws";
+  const bufferLink = bufferClient.run(
+    `${bufferScheme}://${location.host}/ws/buffers/${encodeURIComponent(actorId)}`,
+  );
 
   const treeStore = new runtime.Store({ treeItems: [] });
   const itemBinding = (path: keyof TreeItem) => ({
@@ -239,7 +442,7 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
   );
 
   const activeDocument = (): StudioDocument | undefined =>
-    state?.preview ?? state?.document;
+    draft?.document ?? state?.document;
 
   const showMessage = (value: string, error = false) => {
     message.textContent = value;
@@ -249,30 +452,69 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
   const schemaFor = (tag: string): ComponentSchema | undefined =>
     catalog?.components.find((component) => component.tag === tag);
 
-  const postOperations = async (operations: unknown[]): Promise<boolean> => {
+  const submitOperations = async (operations: unknown[]): Promise<boolean> => {
     if (!state) return false;
-    if (state.preview) {
-      showMessage(
-        "Discard or commit the active MCP preview before editing in the inspector.",
-        true,
-      );
-      return false;
-    }
-    const response = await fetch("/api/operations", {
+    const response = await fetch("/api/drafts", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ expected_revision: state.revision, operations }),
+      body: JSON.stringify({
+        expected_revision: state.revision,
+        preview_id: draft?.preview_id,
+        actor_id: actorId,
+        operations,
+      }),
     });
-    const result = (await response.json()) as { error?: string };
+    const result = (await response.json()) as {
+      error?: string;
+      preview_id: string;
+      base_revision: number;
+      document: StudioDocument;
+    };
     if (!response.ok) {
       showMessage(result.error ?? "Edit failed", true);
       return false;
     }
-    showMessage(
-      "Edit accepted; waiting for the authoritative transports patch.",
-    );
+    draft = result;
+    showMessage("Private draft updated. Commit when the preview is ready.");
+    render();
     return true;
   };
+  let operationQueue = Promise.resolve();
+  const postOperations = (operations: unknown[]): Promise<boolean> => {
+    const request = operationQueue.then(() => submitOperations(operations));
+    operationQueue = request.then(
+      () => undefined,
+      () => undefined,
+    );
+    return request;
+  };
+
+  const finishDraft = async (action: "commit" | "discard") => {
+    if (!draft) return;
+    const response = await fetch(
+      `/api/drafts/${encodeURIComponent(draft.preview_id)}/${action}`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ actor_id: actorId }),
+      },
+    );
+    const result = (await response.json()) as { error?: string };
+    if (!response.ok) {
+      showMessage(result.error ?? `Draft ${action} failed`, true);
+      return;
+    }
+    draft = undefined;
+    showMessage(
+      action === "commit"
+        ? "Draft committed; waiting for the authoritative transports patch."
+        : "Draft discarded.",
+    );
+    render();
+  };
+
+  commitDraft.addEventListener("click", () => void finishDraft("commit"));
+  discardDraft.addEventListener("click", () => void finishDraft("discard"));
 
   const inferredProperty = (
     name: string,
@@ -395,7 +637,371 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
       field.append(heading, propertyControl(property, value));
       propertyFields.append(field);
     }
+    activateBuffer(
+      bindingsEditor,
+      bufferKey("bindings", node.id),
+      JSON.stringify(node.bindings, null, 2),
+    );
+    activateBuffer(
+      eventsEditor,
+      bufferKey("events", node.id),
+      JSON.stringify(node.events, null, 2),
+    );
+    renderBehaviorControls(node);
+    eventHelp.textContent = component?.events.length
+      ? `Declared events: ${component.events.join(", ")}. Each value must be a Spaday action.`
+      : "Map DOM event names to Spaday actions.";
   };
+
+  const jsonObject = (source: string, label: string) => {
+    const value = JSON.parse(source) as unknown;
+    if (!value || Array.isArray(value) || typeof value !== "object")
+      throw new Error(`${label} must be a JSON object.`);
+    return value as Record<string, Record<string, JsonValue>>;
+  };
+
+  const mapOperations = (
+    node: StudioNode,
+    kind: "binding" | "event",
+    next: Record<string, Record<string, JsonValue>>,
+  ): unknown[] => {
+    const current = kind === "binding" ? node.bindings : node.events;
+    const operations: unknown[] = [];
+    for (const name of Object.keys(current)) {
+      if (!(name in next))
+        operations.push({ kind: `unset_${kind}`, id: node.id, name });
+    }
+    for (const [name, value] of Object.entries(next)) {
+      if (JSON.stringify(value) === JSON.stringify(current[name])) continue;
+      operations.push({
+        kind: `set_${kind}`,
+        id: node.id,
+        name,
+        [kind === "binding" ? "binding" : "action"]: value,
+      });
+    }
+    return operations;
+  };
+
+  const behaviorField = (
+    text: string,
+    control: HTMLInputElement | HTMLSelectElement,
+  ) => {
+    const label = document.createElement("label");
+    const caption = document.createElement("span");
+    caption.textContent = text;
+    label.append(caption, control);
+    return label;
+  };
+
+  const behaviorInput = (value: string, placeholder: string) => {
+    const input = document.createElement("input");
+    input.type = "text";
+    input.value = value;
+    input.placeholder = placeholder;
+    return input;
+  };
+
+  const objectValue = (
+    value: JsonValue | undefined,
+  ): Record<string, JsonValue> | undefined =>
+    value && !Array.isArray(value) && typeof value === "object"
+      ? value
+      : undefined;
+
+  const commonBinding = (binding: Record<string, JsonValue>) => {
+    const keys = Object.keys(binding);
+    return (
+      keys.every((key) => ["field", "mode", "event"].includes(key)) &&
+      typeof binding.field === "string" &&
+      ["one-way", "two-way"].includes(String(binding.mode)) &&
+      (binding.event === undefined || typeof binding.event === "string")
+    );
+  };
+
+  type CommonActionKind =
+    | "toggle-field"
+    | "set-field-event"
+    | "set-field-literal";
+
+  const commonActionKind = (
+    action: Record<string, JsonValue>,
+  ): CommonActionKind | undefined => {
+    if (
+      action.kind === "toggle-field" &&
+      typeof action.field === "string" &&
+      Object.keys(action).every((key) => ["kind", "field"].includes(key))
+    )
+      return "toggle-field";
+    if (
+      action.kind !== "set-field" ||
+      typeof action.field !== "string" ||
+      !Object.keys(action).every((key) =>
+        ["kind", "field", "value"].includes(key),
+      )
+    )
+      return undefined;
+    const value = objectValue(action.value);
+    if (!value) return undefined;
+    if (
+      value.expr === "event" &&
+      Object.keys(value).every((key) => ["expr", "path"].includes(key)) &&
+      (value.path === undefined || typeof value.path === "string")
+    )
+      return "set-field-event";
+    if (
+      value.expr === "lit" &&
+      Object.keys(value).every((key) => ["expr", "value"].includes(key)) &&
+      Object.prototype.hasOwnProperty.call(value, "value")
+    )
+      return "set-field-literal";
+    return undefined;
+  };
+
+  const updateBehaviorMap = (
+    editor: JsonEditor,
+    value: Record<string, Record<string, JsonValue>>,
+  ) => writeBuffer(editor, JSON.stringify(value, null, 2), true);
+
+  const renderBindingRow = (
+    name = "",
+    binding: Record<string, JsonValue> = {
+      field: "",
+      mode: "one-way",
+    },
+  ) => {
+    const row = document.createElement("div");
+    row.className = "studio-behavior-row studio-binding-row";
+    const property = behaviorInput(name, "property");
+    property.dataset.studioBindingName = "";
+    const field = behaviorInput(String(binding.field ?? ""), "Store field");
+    field.dataset.studioBindingField = "";
+    const mode = document.createElement("select");
+    mode.dataset.studioBindingMode = "";
+    mode.append(
+      new Option("One-way", "one-way"),
+      new Option("Two-way", "two-way"),
+    );
+    mode.value = String(binding.mode ?? "one-way");
+    const event = behaviorInput(String(binding.event ?? ""), "default");
+    event.dataset.studioBindingEvent = "";
+    const eventField = behaviorField("Change event", event);
+    const configureEvent = () => {
+      eventField.hidden = mode.value !== "two-way";
+    };
+    configureEvent();
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.textContent = "Remove";
+    let storedName = name;
+    const persist = () => {
+      try {
+        const nextName = property.value.trim();
+        if (!nextName || !field.value.trim()) return;
+        const next = jsonObject(bindingsEditor.doc, "Bindings");
+        if (storedName && storedName !== nextName) delete next[storedName];
+        next[nextName] = {
+          field: field.value.trim(),
+          mode: mode.value,
+          ...(event.value.trim() ? { event: event.value.trim() } : {}),
+        };
+        storedName = nextName;
+        updateBehaviorMap(bindingsEditor, next);
+      } catch (error) {
+        showMessage(
+          error instanceof Error ? error.message : "Invalid binding",
+          true,
+        );
+      }
+    };
+    for (const control of [property, field, event])
+      control.addEventListener("change", persist);
+    mode.addEventListener("change", () => {
+      configureEvent();
+      persist();
+    });
+    remove.addEventListener("click", () => {
+      if (!storedName) {
+        row.remove();
+        return;
+      }
+      try {
+        const next = jsonObject(bindingsEditor.doc, "Bindings");
+        delete next[storedName];
+        updateBehaviorMap(bindingsEditor, next);
+      } catch (error) {
+        showMessage(
+          error instanceof Error ? error.message : "Invalid binding",
+          true,
+        );
+      }
+    });
+    row.append(
+      behaviorField("Property", property),
+      behaviorField("Store field", field),
+      behaviorField("Direction", mode),
+      eventField,
+      remove,
+    );
+    return row;
+  };
+
+  const renderEventRow = (
+    name = "",
+    action: Record<string, JsonValue> = {
+      kind: "toggle-field",
+      field: "",
+    },
+  ) => {
+    const row = document.createElement("div");
+    row.className = "studio-behavior-row studio-event-row";
+    const eventName = behaviorInput(name, "event");
+    eventName.dataset.studioEventName = "";
+    const kind = document.createElement("select");
+    kind.dataset.studioActionKind = "";
+    kind.append(
+      new Option("Toggle Store field", "toggle-field"),
+      new Option("Set field from event", "set-field-event"),
+      new Option("Set field to value", "set-field-literal"),
+    );
+    kind.value = commonActionKind(action) ?? "toggle-field";
+    const field = behaviorInput(String(action.field ?? ""), "Store field");
+    field.dataset.studioActionField = "";
+    const detail = behaviorInput("", "");
+    detail.dataset.studioActionValue = "";
+    const value = objectValue(action.value);
+    if (kind.value === "set-field-event")
+      detail.value = String(value?.path ?? "");
+    if (kind.value === "set-field-literal")
+      detail.value = JSON.stringify(value?.value ?? null);
+    const detailField = behaviorField("Event path", detail);
+    const configureDetail = () => {
+      detailField.hidden = kind.value === "toggle-field";
+      detailField.querySelector("span")!.textContent =
+        kind.value === "set-field-literal" ? "JSON value" : "Event path";
+      detail.placeholder =
+        kind.value === "set-field-literal" ? '"value"' : "optional path";
+      if (kind.value === "set-field-literal" && !detail.value)
+        detail.value = "null";
+    };
+    configureDetail();
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.textContent = "Remove";
+    let storedName = name;
+    const persist = () => {
+      try {
+        const nextName = eventName.value.trim();
+        if (!nextName || !field.value.trim()) return;
+        const next = jsonObject(eventsEditor.doc, "Events");
+        if (storedName && storedName !== nextName) delete next[storedName];
+        const actionKind = kind.value as CommonActionKind;
+        next[nextName] =
+          actionKind === "toggle-field"
+            ? { kind: "toggle-field", field: field.value.trim() }
+            : {
+                kind: "set-field",
+                field: field.value.trim(),
+                value:
+                  actionKind === "set-field-event"
+                    ? {
+                        expr: "event",
+                        ...(detail.value.trim()
+                          ? { path: detail.value.trim() }
+                          : {}),
+                      }
+                    : {
+                        expr: "lit",
+                        value: JSON.parse(detail.value) as JsonValue,
+                      },
+              };
+        storedName = nextName;
+        updateBehaviorMap(eventsEditor, next);
+      } catch (error) {
+        showMessage(
+          error instanceof Error ? error.message : "Invalid action",
+          true,
+        );
+      }
+    };
+    for (const control of [eventName, field, detail])
+      control.addEventListener("change", persist);
+    kind.addEventListener("change", () => {
+      configureDetail();
+      persist();
+    });
+    remove.addEventListener("click", () => {
+      if (!storedName) {
+        row.remove();
+        return;
+      }
+      try {
+        const next = jsonObject(eventsEditor.doc, "Events");
+        delete next[storedName];
+        updateBehaviorMap(eventsEditor, next);
+      } catch (error) {
+        showMessage(
+          error instanceof Error ? error.message : "Invalid action",
+          true,
+        );
+      }
+    });
+    row.append(
+      behaviorField("Event", eventName),
+      behaviorField("Action", kind),
+      behaviorField("Store field", field),
+      detailField,
+      remove,
+    );
+    return row;
+  };
+
+  renderBehaviorControls = (node: StudioNode) => {
+    let bindings = node.bindings;
+    let events = node.events;
+    try {
+      bindings = jsonObject(bindingsEditor.doc, "Bindings");
+    } catch {}
+    try {
+      events = jsonObject(eventsEditor.doc, "Events");
+    } catch {}
+    const simpleBindings = Object.entries(bindings).filter(([, binding]) =>
+      commonBinding(binding),
+    );
+    const simpleEvents = Object.entries(events).filter(([, action]) =>
+      Boolean(commonActionKind(action)),
+    );
+    bindingControls.replaceChildren(
+      ...simpleBindings.map(([name, binding]) =>
+        renderBindingRow(name, binding),
+      ),
+    );
+    eventControls.replaceChildren(
+      ...simpleEvents.map(([name, action]) => renderEventRow(name, action)),
+    );
+    const complexBindings =
+      Object.keys(bindings).length - simpleBindings.length;
+    const complexEvents = Object.keys(events).length - simpleEvents.length;
+    bindingJsonHelp.textContent = complexBindings
+      ? `${complexBindings} advanced binding ${complexBindings === 1 ? "is" : "are"} available only in this complete validated map.`
+      : "Edit the complete validated binding map.";
+    eventJsonHelp.textContent = complexEvents
+      ? `${complexEvents} advanced action ${complexEvents === 1 ? "is" : "are"} available only in this complete validated map.`
+      : "Edit the complete validated action map.";
+  };
+
+  addBinding.addEventListener("click", () => {
+    bindingControls.append(renderBindingRow());
+    bindingControls
+      .querySelector<HTMLInputElement>(".studio-binding-row:last-child input")
+      ?.focus();
+  });
+  addEvent.addEventListener("click", () => {
+    eventControls.append(renderEventRow());
+    eventControls
+      .querySelector<HTMLInputElement>(".studio-event-row:last-child input")
+      ?.focus();
+  });
 
   const readControl = (control: PropertyControl): JsonValue | undefined => {
     const kind = control.dataset.kind as PropertyKind;
@@ -456,6 +1062,17 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
     form.hidden = false;
     label.value = `${selected.tag} · ${selected.id}`;
     renderProperties(selected);
+    const component = schemaFor(selected.tag);
+    const slots = new Set([
+      "default",
+      ...(component?.slots ?? []),
+      ...Object.keys(selected.slots),
+    ]);
+    const previousSlot = componentSlot.value;
+    componentSlot.replaceChildren(
+      ...[...slots].sort().map((slot) => new Option(slot, slot)),
+    );
+    componentSlot.value = slots.has(previousSlot) ? previousSlot : "default";
     addComponent.disabled = Object.prototype.hasOwnProperty.call(
       selected.props,
       "textContent",
@@ -485,17 +1102,35 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
     const active = activeDocument();
     if (!active || !state) return;
     const nextTree = compileNode(active.root, transport.toValue);
-    if (!root) root = runtime.mount(canvas, nextTree);
+    if (!canvasStore) canvasStore = new runtime.Store(active.state);
+    else {
+      for (const field of Object.keys(canvasState)) {
+        if (!(field in active.state)) canvasStore.set(field, undefined);
+      }
+      for (const [field, value] of Object.entries(active.state)) {
+        if (JSON.stringify(value) !== JSON.stringify(canvasState[field]))
+          canvasStore.set(field, value);
+      }
+    }
+    canvasState = structuredClone(active.state);
+    if (!root) root = runtime.mount(canvas, nextTree, canvasStore);
     else {
       const patch = JSON.parse(
         runtime.diff(JSON.stringify(currentTree), JSON.stringify(nextTree)),
       ) as unknown;
-      root = runtime.applyPatch(root, patch);
+      root = runtime.applyPatch(root, patch, canvasStore);
     }
     currentTree = nextTree;
     revision.textContent = `Revision ${state.revision}`;
-    preview.textContent = state.preview ? "Preview draft" : "Canonical";
-    preview.classList.toggle("studio-preview-active", Boolean(state.preview));
+    preview.textContent = draft ? "Private draft" : "Canonical";
+    preview.classList.toggle("studio-preview-active", Boolean(draft));
+    commitDraft.hidden = !draft;
+    discardDraft.hidden = !draft;
+    activateBuffer(
+      stateEditor,
+      bufferKey("state"),
+      JSON.stringify(active.state, null, 2),
+    );
     connection.textContent = "Live";
     if (pendingSelection && findNode(active.root, pendingSelection)) {
       selectedId = pendingSelection;
@@ -510,6 +1145,8 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
     if (!selectedId) return;
     const operations: unknown[] = [];
     try {
+      const node = findNode(activeDocument()!.root, selectedId);
+      if (!node) throw new Error("Selected component no longer exists.");
       for (const control of propertyFields.querySelectorAll<PropertyControl>(
         ".studio-property-control",
       )) {
@@ -524,6 +1161,14 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
           operations.push({ kind: "set_prop", id: selectedId, name, value });
         }
       }
+      operations.push(
+        ...mapOperations(
+          node,
+          "binding",
+          jsonObject(bindingsEditor.doc, "Bindings"),
+        ),
+        ...mapOperations(node, "event", jsonObject(eventsEditor.doc, "Events")),
+      );
     } catch (error) {
       showMessage(
         error instanceof Error ? error.message : "Invalid property value",
@@ -538,10 +1183,40 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
     void postOperations(operations);
   });
 
+  applyState.addEventListener("click", () => {
+    const active = activeDocument();
+    if (!active) return;
+    try {
+      const parsed = JSON.parse(stateEditor.doc) as unknown;
+      if (!parsed || Array.isArray(parsed) || typeof parsed !== "object")
+        throw new Error("Runtime state must be a JSON object.");
+      const next = parsed as Record<string, JsonValue>;
+      const operations: unknown[] = [];
+      for (const name of Object.keys(active.state)) {
+        if (!(name in next)) operations.push({ kind: "unset_state", name });
+      }
+      for (const [name, value] of Object.entries(next)) {
+        if (JSON.stringify(value) !== JSON.stringify(active.state[name]))
+          operations.push({ kind: "set_state", name, value });
+      }
+      if (!operations.length) {
+        showMessage("No runtime state changes to preview.");
+        return;
+      }
+      void postOperations(operations);
+    } catch (error) {
+      showMessage(
+        error instanceof Error ? error.message : "Invalid runtime state",
+        true,
+      );
+    }
+  });
+
   addComponent.addEventListener("click", () => {
     if (!selectedId) return;
     const parent = findNode(activeDocument()!.root, selectedId);
-    const index = parent?.slots.default?.length ?? 0;
+    const slot = componentSlot.value;
+    const siblings = parent?.slots[slot] ?? [];
     const component = schemaFor(componentType.value);
     if (!component) return;
     const suffix = globalThis.crypto?.randomUUID?.() ?? Date.now().toString(36);
@@ -556,12 +1231,16 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
       {
         kind: "insert",
         parent_id: selectedId,
-        slot: "default",
-        index,
+        slot,
+        ...(siblings.length
+          ? { after_id: siblings[siblings.length - 1].id }
+          : {}),
         node: {
           id,
           tag: component.tag,
           props,
+          bindings: {},
+          events: {},
           slots: {},
         },
       },
@@ -580,7 +1259,7 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
         id: selectedId,
         parent_id: location.parent.id,
         slot: location.slot,
-        index: location.index - 1,
+        before_id: location.parent.slots[location.slot][location.index - 1].id,
       },
     ]);
   });
@@ -597,8 +1276,6 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
           ? event.target.closest<HTMLElement>("[data-spaday-studio-id]")
           : null;
       if (!target) return;
-      event.preventDefault();
-      event.stopPropagation();
       const id = target.dataset.spadayStudioId;
       if (id) select(id);
     },
@@ -631,7 +1308,10 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
 
   return {
     stop() {
+      if (bufferModelId !== undefined)
+        bufferClient.setAwareness(bufferModelId, null);
       link.stop();
+      bufferLink.stop();
       root?.remove();
       treeRoot.remove();
     },
