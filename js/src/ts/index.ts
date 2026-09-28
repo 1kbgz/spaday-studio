@@ -258,7 +258,6 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
   const actorColor = `hsl(${[...actorId].reduce((sum, character) => sum + character.charCodeAt(0), 0) % 360} 65% 45%)`;
   const bufferKeys = new Map<JsonEditor, string>();
   const bufferInitial = new Map<JsonEditor, string>();
-  const initializedBufferKeys = new Set<string>();
   const pendingPropertyValues = new Map<string, Map<string, string>>();
   let bufferModelId: number | undefined;
   let bufferValues: Record<string, string> = {};
@@ -313,17 +312,9 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
     const initial = bufferInitial.get(editor);
     if (!key || initial === undefined || bufferModelId === undefined) return;
     if (!(key in bufferValues)) {
-      if (accessRole === "read") {
-        editor.doc = initial;
-        return;
-      }
-      if (initializedBufferKeys.has(key)) return;
-      initializedBufferKeys.add(key);
-      bufferValues[key] = initial;
-      bufferClient.proposeCrdt(bufferModelId, [
-        { kind: "map_set", path: [], key, value: initial },
-      ]);
-    } else initializedBufferKeys.add(key);
+      editor.doc = initial;
+      return;
+    }
     editor.doc = bufferValues[key];
   };
 
@@ -408,18 +399,25 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
     if (accessRole === "read") return;
     const key = bufferKeys.get(editor);
     if (!key || bufferModelId === undefined) return;
+    const shared = key in bufferValues;
     const current = bufferValues[key] ?? bufferInitial.get(editor) ?? "";
     const splice = spliceText(current, next);
     bufferValues[key] = next;
     if (updateEditor) editor.doc = next;
-    if (splice.delete_count || splice.values.length)
-      bufferClient.proposeCrdt(bufferModelId, [
-        {
-          kind: "sequence_splice",
-          path: [{ kind: "key", key }],
-          ...splice,
-        },
-      ]);
+    if (splice.delete_count || splice.values.length) {
+      bufferClient.proposeCrdt(
+        bufferModelId,
+        shared
+          ? [
+              {
+                kind: "sequence_splice",
+                path: [{ kind: "key", key }],
+                ...splice,
+              },
+            ]
+          : [{ kind: "map_set", path: [], key, value: next }],
+      );
+    }
     publishCursor(editor);
   };
 
