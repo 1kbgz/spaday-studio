@@ -267,6 +267,7 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
   let accessReady = false;
   let draftRecoveryReady = false;
   let bufferReady = false;
+  let committedRevision: number | undefined;
   let historyRequest = 0;
   const isReady = () =>
     Boolean(
@@ -597,18 +598,33 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
         body: JSON.stringify({ actor_id: actorId }),
       },
     );
-    const result = (await response.json()) as { error?: string };
+    const result = (await response.json()) as {
+      error?: string;
+      revision: number;
+    };
     if (!response.ok) {
       showMessage(result.error ?? `Draft ${action} failed`, true);
       return;
     }
-    draft = undefined;
+    if (action === "discard") {
+      draft = undefined;
+      showMessage("Draft discarded.");
+      render();
+      return;
+    }
+    committedRevision = result.revision;
     showMessage(
-      action === "commit"
-        ? "Draft committed; waiting for the authoritative transports patch."
-        : "Draft discarded.",
+      "Draft committed; waiting for the authoritative transports patch.",
     );
-    render();
+    if (
+      state &&
+      committedRevision !== undefined &&
+      state.revision >= committedRevision
+    ) {
+      draft = undefined;
+      committedRevision = undefined;
+      render();
+    }
   };
 
   commitDraft.addEventListener("click", () => void finishDraft("commit"));
@@ -1564,6 +1580,13 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
   client.onConnect(() => void recoverDraft());
   client.onChange((change) => {
     state = transport.fromValue(client.value(change.id)) as StudioState;
+    if (
+      committedRevision !== undefined &&
+      state.revision >= committedRevision
+    ) {
+      draft = undefined;
+      committedRevision = undefined;
+    }
     render();
   });
   const scheme = location.protocol === "https:" ? "wss" : "ws";
