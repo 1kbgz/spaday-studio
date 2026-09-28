@@ -64,6 +64,54 @@ def test_undo_restores_previous_document_as_a_new_revision():
     assert result["revision"] == 2
     assert studio.state.document.root.slots["default"][0].props["textContent"] == "Before"
 
+    redone = studio.redo(2)
+    assert redone["revision"] == 3
+    assert studio.state.document.root.slots["default"][0].props["textContent"] == "After"
+
+
+def test_repeated_undo_does_not_toggle_the_last_document():
+    studio = session()
+    studio.apply(0, EDIT)
+    studio.undo(1)
+
+    with pytest.raises(ValueError, match="no committed edit to undo"):
+        studio.undo(2)
+
+
+def test_new_edit_clears_redo_and_history_is_bounded():
+    studio = StudioSession(session().state.document, history_limit=2)
+    studio.apply(0, EDIT)
+    studio.undo(1)
+    studio.apply(2, [{"kind": "set_state", "name": "ready", "value": True}])
+
+    with pytest.raises(ValueError, match="no committed edit to redo"):
+        studio.redo(3)
+
+    studio.apply(3, [{"kind": "set_state", "name": "count", "value": 1}])
+    studio.apply(4, [{"kind": "set_state", "name": "count", "value": 2}])
+    assert len(studio._commits) == 2
+    assert len(studio._undo) == 2
+
+
+def test_draft_rejects_rebase_when_required_history_was_pruned():
+    studio = StudioSession(session().state.document, history_limit=1)
+    draft = studio.preview(0, [{"kind": "set_state", "name": "draft", "value": True}], owner="alice")
+    studio.apply(0, [{"kind": "set_state", "name": "one", "value": 1}], owner="bob")
+    studio.apply(1, [{"kind": "set_state", "name": "two", "value": 2}], owner="bob")
+
+    with pytest.raises(PreviewConflict, match="history is no longer retained"):
+        studio.commit_preview(draft["preview_id"], owner="alice")
+
+
+def test_history_reports_only_actions_available_to_the_actor():
+    studio = session()
+    studio.apply(0, EDIT, owner="alice")
+
+    assert studio.history("alice") == {"can_undo": True, "can_redo": False}
+    assert studio.history("bob") == {"can_undo": False, "can_redo": False}
+    studio.undo(1, owner="alice")
+    assert studio.history("alice") == {"can_undo": False, "can_redo": True}
+
 
 def test_undo_rejects_an_empty_history_and_another_owners_commit():
     studio = session()
@@ -197,6 +245,14 @@ def test_new_preview_replaces_the_same_owners_previous_draft():
     with pytest.raises(PreviewConflict, match="draft is missing"):
         studio.discard_preview(first["preview_id"], owner="alice")
     assert studio.discard_preview(second["preview_id"], owner="alice")["revision"] == 0
+
+
+def test_actor_can_recover_its_active_private_draft():
+    studio = session()
+    preview = studio.preview(0, EDIT, owner="alice")
+
+    assert studio.preview_for("alice") == preview
+    assert studio.preview_for("bob") is None
 
 
 @pytest.mark.parametrize(

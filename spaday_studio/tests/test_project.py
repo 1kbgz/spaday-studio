@@ -3,7 +3,7 @@ import json
 import pytest
 
 from spaday_studio import StudioDocument, StudioNode
-from spaday_studio.project import ProjectFile, export_python
+from spaday_studio.project import PROJECT_SCHEMA_VERSION, ProjectFile, export_python
 
 
 def document() -> StudioDocument:
@@ -36,7 +36,17 @@ def test_project_file_round_trips_validated_json_atomically(tmp_path):
     project.save(document())
 
     assert project.load() == document()
+    saved = json.loads(project.path.read_text())
+    assert saved == {"schema_version": PROJECT_SCHEMA_VERSION, "document": document().model_dump(mode="json")}
     assert not list(project.path.parent.glob(".*.tmp"))
+
+
+def test_project_file_rejects_unknown_schema_versions(tmp_path):
+    path = tmp_path / "future.studio.json"
+    path.write_text(json.dumps({"schema_version": 999, "document": document().model_dump(mode="json")}))
+
+    with pytest.raises(ValueError, match="schema version 999"):
+        ProjectFile(path).load()
 
 
 def test_python_export_is_deterministic_and_matches_compiled_component():

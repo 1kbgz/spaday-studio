@@ -17,12 +17,15 @@ from .models import (
     RemoveNode,
     SetBinding,
     SetEvent,
+    SetKey,
     SetProp,
     SetState,
+    SetTitle,
     StudioDocument,
     StudioOperation,
     UnsetBinding,
     UnsetEvent,
+    UnsetKey,
     UnsetProp,
     UnsetState,
     apply_operations,
@@ -60,17 +63,30 @@ class _Draft:
 class _Commit:
     revision: int
     owner: str
-    operations: list[StudioOperation]
+    operations: list[StudioOperation] | None
     previous: StudioDocument
+    current: StudioDocument
 
 
 class StudioSession:
     """Apply validated edits and manage isolated transactional drafts."""
 
-    def __init__(self, document: StudioDocument, *, save_document: Callable[[StudioDocument], None] | None = None) -> None:
+    def __init__(
+        self,
+        document: StudioDocument,
+        *,
+        save_document: Callable[[StudioDocument], None] | None = None,
+        history_limit: int = 100,
+    ) -> None:
+        if history_limit < 1:
+            raise ValueError("history_limit must be at least 1")
         self.state = StudioState(document=document)
         self._drafts: dict[str, _Draft] = {}
         self._commits: list[_Commit] = []
+        self._undo: list[_Commit] = []
+        self._redo: list[_Commit] = []
+        self._history_floor = 0
+        self._history_limit = history_limit
         self._lock = RLock()
         self._save_document = save_document
 
@@ -99,6 +115,21 @@ class StudioSession:
         with self._lock:
             document = self._owned_draft(draft_id, owner).document if draft_id is not None else self.state.document
             return find_node(document.root, node_id).model_dump(mode="json")
+
+    def preview_for(self, owner: str) -> dict | None:
+        """Return ``owner``'s active private preview, if one exists."""
+        with self._lock:
+            draft = next((draft for draft in self._drafts.values() if draft.owner == owner), None)
+            if draft is None:
+                return None
+            old = self.state.document.component().to_json()
+            new = draft.document.component().to_json()
+            return {
+                "preview_id": draft.id,
+                "base_revision": draft.base_revision,
+                "document": draft.document.model_dump(mode="json"),
+                "patch": json.loads(diff(old, new)),
+            }
 
     def python_source(self) -> str:
         """Export the canonical document as deterministic spaday Python."""
@@ -158,8 +189,12 @@ class StudioSession:
         """Commit an owned draft, rebasing it over disjoint accepted changes."""
         with self._lock:
             draft = self._owned_draft(preview_id, owner)
+            if draft.base_revision < self._history_floor:
+                raise PreviewConflict(f"draft cannot be rebased because revision {draft.base_revision} history is no longer retained")
             intervening = [commit for commit in self._commits if commit.revision > draft.base_revision]
             for commit in intervening:
+                if commit.operations is None:
+                    raise PreviewConflict(f"draft conflicts with revision {commit.revision}: canonical history changed")
                 reason = _conflict_reason(draft.operations, commit.operations)
                 if reason is not None:
                     raise PreviewConflict(f"draft conflicts with revision {commit.revision}: {reason}")
@@ -182,9 +217,9 @@ class StudioSession:
         """Undo the owner's most recent commit when it is still the canonical head."""
         with self._lock:
             self._expect_revision(expected_revision)
-            if not self._commits:
+            if not self._undo:
                 raise ValueError("no committed edit to undo")
-            commit = self._commits[-1]
+            commit = self._undo[-1]
             if commit.owner != owner:
                 raise RevisionConflict(f"revision {commit.revision} belongs to another editor")
             candidate = commit.previous
@@ -192,15 +227,70 @@ class StudioSession:
             self._persist(candidate)
             self.state.document = candidate
             self.state.revision += 1
-            self._commits.append(_Commit(self.state.revision, owner, [], previous))
+            self._undo.pop()
+            self._redo.append(commit)
+            self._record_history_change(owner, previous, candidate)
             return self.snapshot()
+
+    def redo(self, expected_revision: int, *, owner: str = "direct") -> dict:
+        """Redo the owner's most recently undone commit when no new edit replaced it."""
+        with self._lock:
+            self._expect_revision(expected_revision)
+            if not self._redo:
+                raise ValueError("no committed edit to redo")
+            commit = self._redo[-1]
+            if commit.owner != owner:
+                raise RevisionConflict("redo belongs to another editor")
+            candidate = commit.current
+            previous = self.state.document.model_copy(deep=True)
+            self._persist(candidate)
+            self.state.document = candidate
+            self.state.revision += 1
+            self._redo.pop()
+            self._undo.append(commit)
+            self._record_history_change(owner, previous, candidate)
+            return self.snapshot()
+
+    def history(self, owner: str = "direct") -> dict[str, bool]:
+        """Return whether ``owner`` can undo or redo the canonical head."""
+        with self._lock:
+            return {
+                "can_undo": bool(self._undo and self._undo[-1].owner == owner),
+                "can_redo": bool(self._redo and self._redo[-1].owner == owner),
+            }
 
     def _accept(self, candidate: StudioDocument, operations: list[StudioOperation], owner: str) -> None:
         previous = self.state.document.model_copy(deep=True)
         self._persist(candidate)
         self.state.document = candidate
         self.state.revision += 1
-        self._commits.append(_Commit(self.state.revision, owner, operations, previous))
+        commit = _Commit(self.state.revision, owner, operations, previous, candidate.model_copy(deep=True))
+        self._commits.append(commit)
+        self._undo.append(commit)
+        self._redo.clear()
+        self._prune_history()
+
+    def _record_history_change(self, owner: str, previous: StudioDocument, current: StudioDocument) -> None:
+        self._commits.append(
+            _Commit(
+                self.state.revision,
+                owner,
+                None,
+                previous,
+                current.model_copy(deep=True),
+            )
+        )
+        self._prune_history()
+
+    def _prune_history(self) -> None:
+        if len(self._commits) > self._history_limit:
+            removed = self._commits[: -self._history_limit]
+            self._commits = self._commits[-self._history_limit :]
+            self._history_floor = max(self._history_floor, removed[-1].revision)
+        if len(self._undo) > self._history_limit:
+            self._undo = self._undo[-self._history_limit :]
+        if len(self._redo) > self._history_limit:
+            self._redo = self._redo[-self._history_limit :]
 
     def _expect_revision(self, expected_revision: int) -> None:
         if expected_revision != self.state.revision:
@@ -251,7 +341,12 @@ def _operation_facts(operations: list[StudioOperation]) -> dict[str, set]:
         name: set() for name in ("fields", "targets", "removed", "moved", "nodes", "slots", "indexed_slots", "anchors", "inserted")
     }
     for operation in operations:
-        if isinstance(operation, (SetProp, UnsetProp)):
+        if isinstance(operation, SetTitle):
+            facts["fields"].add(("document", "title"))
+        elif isinstance(operation, (SetKey, UnsetKey)):
+            facts["fields"].add(("key", operation.id))
+            facts["targets"].add(operation.id)
+        elif isinstance(operation, (SetProp, UnsetProp)):
             facts["fields"].add(("prop", operation.id, operation.name))
             facts["targets"].add(operation.id)
         elif isinstance(operation, (SetBinding, UnsetBinding)):

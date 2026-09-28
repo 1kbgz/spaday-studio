@@ -25,6 +25,9 @@ All operation models reject unknown fields.
 
 | Kind            | Required fields             | Effect                                    |
 | --------------- | --------------------------- | ----------------------------------------- |
+| `set_title`     | `value`                     | Replaces the project title.               |
+| `set_key`       | `id`, `value`               | Sets a node's reconciliation key.         |
+| `unset_key`     | `id`                        | Restores the node ID as its default key.  |
 | `set_prop`      | `id`, `name`, `value`       | Sets one JSON-compatible property.        |
 | `unset_prop`    | `id`, `name`                | Removes one authored property.            |
 | `set_binding`   | `id`, `name`, `binding`     | Sets one core-validated reactive binding. |
@@ -60,12 +63,23 @@ and malformed values reject the complete batch.
    :members:
 
 .. autofunction:: spaday_studio.export_python
+
+.. autofunction:: spaday_studio.document_schema
+
+.. autofunction:: spaday_studio.operation_schema
+
+.. autofunction:: spaday_studio.operation_batch_schema
 ```
+
+`StudioSession(..., history_limit=100)` bounds the canonical journal and undo and redo stacks. Undo and
+redo apply only when the actor owns the latest eligible edit. A new accepted edit clears redo. A private
+draft older than the retained journal returns a conflict instead of rebasing without the required history.
 
 ## Project persistence and Python export
 
-`ProjectFile.save()` serializes canonical documents as indented, key-sorted UTF-8 JSON and replaces the
-target atomically. `ProjectFile.load()` validates the complete file as a `StudioDocument`.
+`ProjectFile.save()` serializes canonical documents in an envelope containing `schema_version` and
+`document`, then replaces the target atomically. `ProjectFile.load()` validates the envelope and rejects an
+unsupported schema version. Studio does not load the unversioned 0.1 pilot format.
 
 `export_python()` returns deterministic source containing `INITIAL_STATE` and a `page() -> Component`
 function. Generated nodes use stable numbered variables, retain explicit keys and Studio IDs, emit
@@ -122,23 +136,44 @@ Built-in HTML schemas are always present. Common properties are `id`, `class`, `
 | `GET /api/export/python`        | Download Python for the canonical revision.        |
 | `GET /api/catalog`              | Selected schemas and installed package names.      |
 | `GET /api/schema/behavior`      | Core action, expression, and binding JSON Schemas. |
+| `GET /api/schema/document`      | Studio document JSON Schema.                       |
+| `GET /api/schema/operation`     | One semantic operation JSON Schema.                |
+| `GET /api/schema/operations`    | Atomic operation-batch JSON Schema.                |
+| `GET /api/access`               | Role assigned to an actor.                         |
 | `POST /api/operations`          | Commit a revision-checked batch directly.          |
+| `GET /api/drafts`               | Recover an actor's active private draft.           |
 | `POST /api/drafts`              | Create or append to an actor's private draft.      |
 | `POST /api/drafts/{id}/commit`  | Commit and, when safe, rebase a private draft.     |
 | `POST /api/drafts/{id}/discard` | Discard a private draft.                           |
+| `GET /api/history`              | Report actor-specific undo and redo availability.  |
+| `POST /api/history/undo`        | Undo the actor's eligible accepted edit.           |
+| `POST /api/history/redo`        | Redo the actor's latest undone edit.               |
 | `WS /ws`                        | Transports mirror carrying canonical state.        |
 | `WS /ws/buffers/{actor_id}`     | CRDT text buffers and cursor awareness.            |
 | `/mcp`                          | MCP Streamable HTTP endpoint.                      |
 
-`POST /api/operations` accepts `expected_revision` and `operations`. A stale revision returns HTTP
-409\. Validation failures return HTTP 422.
+`POST /api/operations` accepts `expected_revision`, `actor_id`, and `operations`. It requires admin
+access. Draft and history mutations require edit access. A stale revision returns HTTP 409, denied access
+returns HTTP 403, and validation failures return HTTP 422.
+
+## Access control
+
+`create_app(authorize=...)` accepts a synchronous `StudioAuthorizer`. The callback receives a
+`StudioAccessContext`, the claimed actor ID, and returns `read`, `edit`, or `admin`. Read access opens the
+canvas and subscribes to collaborative buffers without write permission. Edit access adds private drafts,
+buffer changes, commit, discard, undo, and redo. Admin access adds direct canonical operations.
+
+The default callback grants admin access. The authorizer assigns permissions but does not authenticate a
+claimed actor ID. HTTP and WebSocket contexts expose their Starlette connection so a host can compare the
+actor ID with authenticated request state. MCP contexts have no request object; authenticate `/mcp`
+upstream and apply an actor policy in the callback.
 
 ## MCP surface
 
 The `spaday://project` resource returns current state. `spaday://catalog` returns installed/selected
 package names and compact component summaries. Catalog tools are `list_components` and
 `get_component_schema`. Editing tools are `inspect_component`, `export_python`, `preview_operations`,
-`commit_preview`, `discard_preview`, `apply_operations`, and `undo`.
+`commit_preview`, `discard_preview`, `apply_operations`, `history`, `undo`, and `redo`.
 
 Draft tools accept an `actor_id`. An actor can append to its draft by passing the returned `preview_id` to
 `preview_operations`. Other actors cannot inspect, commit, or discard that draft. Disjoint stale drafts

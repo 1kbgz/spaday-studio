@@ -22,11 +22,13 @@ The pilot includes:
 
 - a selectable live application canvas with schema-driven property, binding, action, and state controls;
 - component catalogs that retain Spaday property, field, event, and named-slot metadata;
-- revision-checked property, binding, event, state, insert, move, and remove operations;
+- revision-checked title, key, property, binding, event, state, insert, move, and remove operations;
 - private browser and MCP drafts with commit, discard, semantic rebase, conflict reporting, inspection,
-  and actor-aware undo;
+  actor-aware undo and redo, and browser-refresh recovery;
 - revision-scoped CodeMirror buffers using transports sequence CRDTs and cursor awareness;
-- atomic structured-project persistence and deterministic Python export;
+- versioned atomic project persistence and deterministic Python export;
+- host-defined read, edit, and admin roles for browser, WebSocket, and MCP operations;
+- public JSON Schemas for documents, semantic operation batches, bindings, expressions, and actions;
 - a persistent Spaday `Store` in the preview canvas, so authored bindings and actions run normally;
 - a Python+JavaScript Copier scaffold, Playwright coverage, and Yardang/Sphinx documentation.
 
@@ -47,6 +49,7 @@ its initial runtime state.
 The MCP endpoint is `http://127.0.0.1:8020/mcp`. Start with the
 [guided tutorial](docs/src/tutorial.md), connect an agent with the
 [MCP how-to guide](docs/src/how-to.md), [save and export a project](docs/src/save-and-export.md),
+[set hosted access roles](docs/src/access-control.md),
 [use an installed component package](docs/src/use-component-package.md), consult the
 [API reference](docs/src/reference.md), or read
 [why Studio uses a structured document](docs/src/explanation.md).
@@ -59,6 +62,8 @@ The MCP endpoint is `http://127.0.0.1:8020/mcp`. Start with the
   placement conflicts after another structural edit because its position is stale.
 - Revision-scoped collaborative buffers are in-memory, pruned after their last draft retires, and are not
   part of the saved project.
+- The default authorizer grants admin access for trusted local use. Network deployments must pass an
+  authorizer and authenticate HTTP, WebSocket, and MCP connections upstream.
 - Component packages are selected when the server starts; the browser cannot activate a package live.
 - Arbitrary handwritten Python is not losslessly round-tripped.
 - Python export is one-way generated output; the structured JSON project remains the editable source.
