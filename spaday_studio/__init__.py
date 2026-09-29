@@ -28,7 +28,7 @@ from .models import (
 from .project import ProjectFile, export_python
 from .session import PreviewConflict, RevisionConflict, StudioSession, StudioState
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 package = ComponentPackage(
     name="studio",
