@@ -262,6 +262,18 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
   let bufferModelId: number | undefined;
   let bufferValues: Record<string, string> = {};
   let renderBehaviorControls = (_node: StudioNode) => {};
+  let behaviorRenderPending = false;
+  const scheduleBehaviorControls = () => {
+    if (behaviorRenderPending) return;
+    behaviorRenderPending = true;
+    requestAnimationFrame(() => {
+      behaviorRenderPending = false;
+      const active = draft?.document ?? state?.document;
+      const selected =
+        active && selectedId ? findNode(active.root, selectedId) : undefined;
+      if (selected) renderBehaviorControls(selected);
+    });
+  };
   let accessRole: "read" | "edit" | "admin" = "read";
   let catalogReady = false;
   let accessReady = false;
@@ -443,10 +455,7 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
       string
     >;
     for (const editor of bufferKeys.keys()) ensureBuffer(editor);
-    const active = draft?.document ?? state?.document;
-    const selected =
-      active && selectedId ? findNode(active.root, selectedId) : undefined;
-    if (selected) renderBehaviorControls(selected);
+    scheduleBehaviorControls();
     renderRemoteCursors();
     if (becameReady && state) render();
   });
@@ -979,6 +988,7 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
         const next = jsonObject(bindingsEditor.doc, "Bindings");
         delete next[storedName];
         updateBehaviorMap(bindingsEditor, next);
+        row.remove();
       } catch (error) {
         showMessage(
           error instanceof Error ? error.message : "Invalid binding",
@@ -1089,6 +1099,7 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
         const next = jsonObject(eventsEditor.doc, "Events");
         delete next[storedName];
         updateBehaviorMap(eventsEditor, next);
+        row.remove();
       } catch (error) {
         showMessage(
           error instanceof Error ? error.message : "Invalid action",
@@ -1106,6 +1117,25 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
     return row;
   };
 
+  const renderedBehaviorBuffers = new Map<
+    JsonEditor,
+    { key: string | undefined; source: string }
+  >();
+  const shouldRenderBehavior = (editor: JsonEditor, controls: HTMLElement) => {
+    const previous = renderedBehaviorBuffers.get(editor);
+    const key = bufferKeys.get(editor);
+    if (
+      previous?.key === key &&
+      (previous?.source === editor.doc ||
+        controls.contains(document.activeElement))
+    )
+      return false;
+    renderedBehaviorBuffers.set(editor, { key, source: editor.doc });
+    return true;
+  };
+  for (const controls of [bindingControls, eventControls])
+    controls.addEventListener("focusout", scheduleBehaviorControls);
+
   renderBehaviorControls = (node: StudioNode) => {
     let bindings = node.bindings;
     let events = node.events;
@@ -1121,14 +1151,16 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
     const simpleEvents = Object.entries(events).filter(([, action]) =>
       Boolean(commonActionKind(action)),
     );
-    bindingControls.replaceChildren(
-      ...simpleBindings.map(([name, binding]) =>
-        renderBindingRow(name, binding),
-      ),
-    );
-    eventControls.replaceChildren(
-      ...simpleEvents.map(([name, action]) => renderEventRow(name, action)),
-    );
+    if (shouldRenderBehavior(bindingsEditor, bindingControls))
+      bindingControls.replaceChildren(
+        ...simpleBindings.map(([name, binding]) =>
+          renderBindingRow(name, binding),
+        ),
+      );
+    if (shouldRenderBehavior(eventsEditor, eventControls))
+      eventControls.replaceChildren(
+        ...simpleEvents.map(([name, action]) => renderEventRow(name, action)),
+      );
     const complexBindings =
       Object.keys(bindings).length - simpleBindings.length;
     const complexEvents = Object.keys(events).length - simpleEvents.length;
