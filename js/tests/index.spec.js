@@ -1,7 +1,6 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures.js";
 
 test.describe("Studio document compiler", () => {
-  test.describe.configure({ mode: "serial" });
   test("adds stable editor identity and compiles nested slots", async ({
     page,
   }) => {
@@ -42,6 +41,7 @@ test.describe("Studio document compiler", () => {
 
   test("previews privately and commits without remounting the canvas", async ({
     page,
+    studioURL,
   }) => {
     let releaseDraftRecovery;
     const draftRecoveryReleased = new Promise((resolve) => {
@@ -51,7 +51,7 @@ test.describe("Studio document compiler", () => {
       await draftRecoveryReleased;
       await route.continue();
     });
-    await page.goto("http://127.0.0.1:8020");
+    await page.goto(studioURL);
     await expect(
       page.getByRole("button", { name: "Preview changes" }),
     ).toBeDisabled();
@@ -75,7 +75,7 @@ test.describe("Studio document compiler", () => {
       .locator('[data-studio-prop="textContent"]')
       .fill("Ship the interface while it is running.");
     const externalEdit = await page.request.post(
-      "http://127.0.0.1:8020/api/operations",
+      `${studioURL}/api/operations`,
       {
         data: {
           expected_revision: initialRevision,
@@ -164,8 +164,9 @@ test.describe("Studio document compiler", () => {
 
   test("runs authored state, bindings, and actions through one persistent Store", async ({
     page,
+    studioURL,
   }) => {
-    await page.goto("http://127.0.0.1:8020");
+    await page.goto(studioURL);
     await expect(page.locator("#connection-status")).toHaveText("Live");
     await page.locator('[data-spaday-studio-id="headline"]').click();
 
@@ -210,6 +211,14 @@ test.describe("Studio document compiler", () => {
       changes.document.root.slots.default.find((node) => node.id === "headline")
         .bindings.textContent,
     ).toEqual({ field: "query", mode: "one-way" });
+    expect(
+      changes.document.root.slots.default.find((node) => node.id === "headline")
+        .events.click,
+    ).toEqual({
+      kind: "set-field",
+      field: "query",
+      value: { expr: "lit", value: "Clicked" },
+    });
 
     await expect(page.locator('[data-spaday-studio-id="headline"]')).toHaveText(
       "Bound",
@@ -223,8 +232,9 @@ test.describe("Studio document compiler", () => {
 
   test("undoes and redoes the actor's latest accepted edit", async ({
     page,
+    studioURL,
   }) => {
-    await page.goto("http://127.0.0.1:8020");
+    await page.goto(studioURL);
     await expect(page.locator("#connection-status")).toHaveText("Live");
     const initialRevision = Number(
       (await page.locator("#revision-status").textContent()).match(/\d+/)[0],
@@ -261,8 +271,9 @@ test.describe("Studio document compiler", () => {
 
   test("moves components in both directions and duplicates subtrees", async ({
     page,
+    studioURL,
   }) => {
-    await page.goto("http://127.0.0.1:8020");
+    await page.goto(studioURL);
     await expect(page.locator("#connection-status")).toHaveText("Live");
     await page.locator('[data-spaday-studio-id="intro"]').click();
     const childIds = () =>
@@ -306,12 +317,10 @@ test.describe("Studio document compiler", () => {
   test("collaborates in bounded CRDT buffers before a private commit", async ({
     context,
     page,
+    studioURL,
   }) => {
     const peer = await context.newPage();
-    await Promise.all([
-      page.goto("http://127.0.0.1:8020"),
-      peer.goto("http://127.0.0.1:8020"),
-    ]);
+    await Promise.all([page.goto(studioURL), peer.goto(studioURL)]);
     await Promise.all([
       expect(page.locator("#connection-status")).toHaveText("Live"),
       expect(peer.locator("#connection-status")).toHaveText("Live"),
@@ -378,8 +387,105 @@ test.describe("Studio document compiler", () => {
     await peer.close();
   });
 
-  test("recovers a private draft after a browser refresh", async ({ page }) => {
-    await page.goto("http://127.0.0.1:8020");
+  test("keeps unfinished behavior controls during shared buffer updates", async ({
+    context,
+    page,
+    studioURL,
+  }) => {
+    const peer = await context.newPage();
+    await Promise.all([page.goto(studioURL), peer.goto(studioURL)]);
+    await expect(page.locator("#connection-status")).toHaveText("Live");
+    await expect(peer.locator("#connection-status")).toHaveText("Live");
+    await page.locator('[data-spaday-studio-id="headline"]').click();
+    await peer.locator('[data-spaday-studio-id="headline"]').click();
+    await page.getByText("Bindings", { exact: true }).click();
+    await page.getByRole("button", { name: "Add binding" }).click();
+    await page.locator("[data-studio-binding-name]").fill("textContent");
+    await page.getByText("Events", { exact: true }).click();
+    await page.getByRole("button", { name: "Add event" }).click();
+    const name = page.locator("[data-studio-event-name]");
+    await name.fill("click");
+    await peer.locator("#state-editor").evaluate((editor) => {
+      editor.view.dispatch({
+        changes: {
+          from: 0,
+          to: editor.view.state.doc.length,
+          insert: '{"query":"Remote"}',
+        },
+      });
+    });
+    await expect
+      .poll(() =>
+        page.locator("#state-editor").evaluate((editor) => editor.doc),
+      )
+      .toBe('{"query":"Remote"}');
+    await expect(name).toHaveValue("click");
+    await expect(name).toBeFocused();
+    await expect(page.locator("[data-studio-binding-name]")).toHaveValue(
+      "textContent",
+    );
+
+    await page
+      .locator("[data-studio-action-kind]")
+      .selectOption("set-field-literal");
+    await page.locator("[data-studio-action-field]").fill("query");
+    const value = page.locator("[data-studio-action-value]");
+    await value.fill('"Unfinished');
+    await expect
+      .poll(() =>
+        peer.locator("#events-editor").evaluate((editor) => editor.doc),
+      )
+      .toContain('"click"');
+    await peer.locator("#events-editor").evaluate((editor) => {
+      const events = JSON.parse(editor.doc);
+      events.mouseover = { kind: "toggle-field", field: "hovered" };
+      editor.view.dispatch({
+        changes: {
+          from: 0,
+          to: editor.view.state.doc.length,
+          insert: JSON.stringify(events, null, 2),
+        },
+      });
+    });
+    await expect
+      .poll(() =>
+        page.locator("#events-editor").evaluate((editor) => editor.doc),
+      )
+      .toContain('"mouseover"');
+    await expect(value).toHaveValue('"Unfinished');
+    await expect(value).toBeFocused();
+    await value.fill('"Clicked"');
+    await value.press("Tab");
+    await page.getByRole("button", { name: "Preview changes" }).click();
+    await expect(page.locator("[data-studio-event-name]")).toHaveCount(2);
+    await expect
+      .poll(() =>
+        peer
+          .locator("#events-editor")
+          .evaluate((editor) => JSON.parse(editor.doc)),
+      )
+      .toEqual({
+        click: {
+          kind: "set-field",
+          field: "query",
+          value: { expr: "lit", value: "Clicked" },
+        },
+        mouseover: { kind: "toggle-field", field: "hovered" },
+      });
+    const remoteAction = page.locator(".studio-event-row").last();
+    await expect(remoteAction.locator("[data-studio-event-name]")).toHaveValue(
+      "mouseover",
+    );
+    await remoteAction.getByRole("button", { name: "Remove" }).click();
+    await expect(page.locator("[data-studio-event-name]")).toHaveCount(1);
+    await peer.close();
+  });
+
+  test("recovers a private draft after a browser refresh", async ({
+    page,
+    studioURL,
+  }) => {
+    await page.goto(studioURL);
     await expect(page.locator("#connection-status")).toHaveText("Live");
     await page.locator('[data-spaday-studio-id="headline"]').click();
     await page
