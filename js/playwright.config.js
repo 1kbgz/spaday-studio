@@ -13,7 +13,7 @@ export default defineConfig({
   ],
   use: {
     baseURL: "http://127.0.0.1:3000",
-    trace: "on-first-retry",
+    trace: "retain-on-failure",
   },
   projects: [
     {
@@ -25,12 +25,6 @@ export default defineConfig({
     {
       command: "pnpm run start:tests",
       url: "http://127.0.0.1:3000",
-      reuseExistingServer: !process.env.CI,
-      timeout: 120 * 1000,
-    },
-    {
-      command: "python -m spaday_studio.server --port 8020",
-      url: "http://127.0.0.1:8020",
       reuseExistingServer: !process.env.CI,
       timeout: 120 * 1000,
     },
