@@ -4,10 +4,11 @@ from __future__ import annotations
 
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, JsonValue, TypeAdapter, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, JsonValue, StrictBool, TypeAdapter, field_validator, model_validator
 from spaday import Component, element, validate_action, validate_binding
 
 WireObject = dict[str, JsonValue]
+EventOptions = dict[Literal["capture", "once", "passive"], StrictBool]
 
 
 class StudioNode(BaseModel):
@@ -21,6 +22,7 @@ class StudioNode(BaseModel):
     props: dict[str, JsonValue] = Field(default_factory=dict)
     bindings: dict[str, WireObject] = Field(default_factory=dict)
     events: dict[str, WireObject] = Field(default_factory=dict)
+    event_options: dict[str, EventOptions] = Field(default_factory=dict)
     slots: dict[str, list[StudioNode]] = Field(default_factory=dict)
 
     @field_validator("tag")
@@ -52,6 +54,12 @@ class StudioNode(BaseModel):
             raise ValueError("a component with textContent cannot also have child nodes")
         return self
 
+    @model_validator(mode="after")
+    def options_have_events(self) -> StudioNode:
+        if self.event_options.keys() - self.events.keys():
+            raise ValueError("event_options requires a matching event action")
+        return self
+
     @field_validator("bindings")
     @classmethod
     def valid_bindings(cls, value: dict[str, WireObject]) -> dict[str, WireObject]:
@@ -69,7 +77,7 @@ class StudioNode(BaseModel):
         for prop, binding in self.bindings.items():
             component.bind_wire(prop, binding)
         for event, action in self.events.items():
-            component.on_wire(event, action)
+            component.on_wire(event, action, **self.event_options.get(event, {}))
         for slot, children in self.slots.items():
             for child in children:
                 component.child_in(slot, child.component())
@@ -188,6 +196,7 @@ class SetEvent(BaseModel):
     id: str
     name: str
     action: WireObject
+    options: EventOptions | None = None
 
     @field_validator("action")
     @classmethod
@@ -347,9 +356,17 @@ def apply_operations(document: StudioDocument, operations: list[StudioOperation]
         elif isinstance(operation, UnsetBinding):
             find_node(candidate.root, operation.id).bindings.pop(operation.name, None)
         elif isinstance(operation, SetEvent):
-            find_node(candidate.root, operation.id).events[operation.name] = operation.action
+            node = find_node(candidate.root, operation.id)
+            node.events[operation.name] = operation.action
+            if operation.options is not None:
+                if operation.options:
+                    node.event_options[operation.name] = operation.options
+                else:
+                    node.event_options.pop(operation.name, None)
         elif isinstance(operation, UnsetEvent):
-            find_node(candidate.root, operation.id).events.pop(operation.name, None)
+            node = find_node(candidate.root, operation.id)
+            node.events.pop(operation.name, None)
+            node.event_options.pop(operation.name, None)
         elif isinstance(operation, SetState):
             candidate.state[operation.name] = operation.value
         elif isinstance(operation, UnsetState):

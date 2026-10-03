@@ -14,6 +14,9 @@ test.describe("Studio document compiler", () => {
           props: { title: "Pilot" },
           bindings: { title: { field: "title", mode: "one-way" } },
           events: { click: { kind: "toggle-field", field: "open" } },
+          event_options: {
+            click: { capture: true, once: true, passive: false },
+          },
           slots: {
             default: [
               {
@@ -35,6 +38,12 @@ test.describe("Studio document compiler", () => {
     expect(compiled.props["data-spaday-studio-id"]).toBe("root");
     expect(compiled.bindings.title.field).toBe("title");
     expect(compiled.events.click.kind).toBe("toggle-field");
+    expect(compiled.event_options.click).toEqual({
+      capture: true,
+      once: true,
+      passive: false,
+    });
+    expect(compiled.slots.default[0].event_options).toBeUndefined();
     expect(compiled.slots.default[0].key).toBe("child");
     expect(compiled.slots.default[0].props.textContent).toBe("Edit");
   });

@@ -72,7 +72,7 @@ def export_python(document: StudioDocument) -> str:
         for name in sorted(node.bindings):
             _append_wire(lines, index, "bind_wire", name, node.bindings[name])
         for name in sorted(node.events):
-            _append_wire(lines, index, "on_wire", name, node.events[name])
+            _append_wire(lines, index, "on_wire", name, node.events[name], node.event_options.get(name))
         _append_prop(lines, index, "data-spaday-studio-id", node.id)
     for index, child_nodes in enumerate(children):
         for slot, child_index in child_nodes:
@@ -100,15 +100,19 @@ def _append_prop(lines: list[str], index: int, name: str, value: object) -> None
     lines.append("    )")
 
 
-def _append_wire(lines: list[str], index: int, method: str, name: str, value: object) -> None:
+def _append_wire(lines: list[str], index: int, method: str, name: str, value: object, options: dict | None = None) -> None:
     name_literal = _literal(name)
     value_literal = _literal(value)
-    statement = f"    node_{index}.{method}({name_literal}, {value_literal})"
+    suffix = ", " + ", ".join(f"{name}={value!r}" for name, value in sorted(options.items())) if options else ""
+    statement = f"    node_{index}.{method}({name_literal}, {value_literal}{suffix})"
     if "\n" not in statement and len(statement) <= 120:
         lines.append(statement)
         return
     lines.extend((f"    node_{index}.{method}(", f"        {name_literal},"))
     lines.extend(f"        {line}" for line in value_literal.splitlines())
+    if options:
+        lines[-1] += ","
+        lines.extend(f"        {name}={value!r}," for name, value in sorted(options.items()))
     lines.append("    )")
 
 
