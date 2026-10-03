@@ -6,6 +6,8 @@ type JsonValue =
   | JsonValue[]
   | { [key: string]: JsonValue };
 
+type EventOptions = Partial<Record<"capture" | "once" | "passive", boolean>>;
+
 export interface StudioNode {
   id: string;
   tag: string;
@@ -13,6 +15,7 @@ export interface StudioNode {
   props: Record<string, JsonValue>;
   bindings: Record<string, Record<string, JsonValue>>;
   events: Record<string, Record<string, JsonValue>>;
+  event_options?: Record<string, EventOptions>;
   slots: Record<string, StudioNode[]>;
 }
 
@@ -62,6 +65,7 @@ interface WireNode {
   props?: Record<string, unknown>;
   bindings?: Record<string, unknown>;
   events?: Record<string, unknown>;
+  event_options?: Record<string, EventOptions>;
   slots?: Record<string, WireNode[]>;
 }
 
@@ -85,6 +89,7 @@ interface RuntimeStore {
 interface RuntimeModule {
   Store: new (initial?: Record<string, unknown>) => RuntimeStore;
   mount(container: Element, tree: WireNode, store?: RuntimeStore): Element;
+  unmount(root: Element): void;
   diff(oldTree: string, newTree: string): string;
   applyPatch(root: Element, patch: unknown, store?: RuntimeStore): Element;
 }
@@ -100,6 +105,7 @@ interface ClientMirror {
   proposeCrdt(id: number, mutations: unknown[]): boolean;
   setAwareness(id: number, state: unknown | null): boolean;
   value(id: number): unknown;
+  connect(url: string): WebSocket;
   run(url: string, options?: { onMessage?: () => void }): { stop(): void };
 }
 
@@ -144,6 +150,9 @@ export function compileNode(
       ? { bindings: node.bindings }
       : {}),
     ...(Object.keys(node.events ?? {}).length ? { events: node.events } : {}),
+    ...(Object.keys(node.event_options ?? {}).length
+      ? { event_options: node.event_options }
+      : {}),
     ...(Object.keys(slots).length ? { slots } : {}),
   };
 }
@@ -204,6 +213,30 @@ function requiredElement<T extends Element>(selector: string): T {
 export function connectStudio({ runtime, transport }: ConnectOptions): {
   stop(): void;
 } {
+  let stopped = false;
+  const listeners = new AbortController();
+  const listen = (
+    target: EventTarget,
+    type: string,
+    callback: (event: Event) => void,
+    capture = false,
+  ) =>
+    target.addEventListener(type, callback, {
+      capture,
+      signal: listeners.signal,
+    });
+  class StudioClient extends transport.Client {
+    private socket?: WebSocket;
+
+    connect(url: string): WebSocket {
+      this.socket = super.connect(url);
+      return this.socket;
+    }
+
+    close() {
+      this.socket?.close();
+    }
+  }
   const canvas = requiredElement<HTMLElement>("#canvas");
   const tree = requiredElement<HTMLElement>("#component-tree");
   const form = requiredElement<HTMLFormElement>("#inspector-form");
@@ -268,6 +301,7 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
     behaviorRenderPending = true;
     requestAnimationFrame(() => {
       behaviorRenderPending = false;
+      if (stopped) return;
       const active = draft?.document ?? state?.document;
       const selected =
         active && selectedId ? findNode(active.root, selectedId) : undefined;
@@ -283,7 +317,12 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
   let historyRequest = 0;
   const isReady = () =>
     Boolean(
-      state && catalogReady && accessReady && draftRecoveryReady && bufferReady,
+      !stopped &&
+      state &&
+      catalogReady &&
+      accessReady &&
+      draftRecoveryReady &&
+      bufferReady,
     );
 
   const configureAccess = () => {
@@ -439,14 +478,12 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
   };
 
   for (const editor of [bindingsEditor, eventsEditor, stateEditor]) {
-    editor.addEventListener("editor-change", (event) =>
-      handleBufferEdit(editor, event),
-    );
-    editor.addEventListener("editor-selection", () => publishCursor(editor));
+    listen(editor, "editor-change", (event) => handleBufferEdit(editor, event));
+    listen(editor, "editor-selection", () => publishCursor(editor));
   }
 
-  const bufferClient = new transport.Client();
-  bufferClient.onChange((change) => {
+  const bufferClient = new StudioClient();
+  const offBufferChange = bufferClient.onChange((change) => {
     const becameReady = !bufferReady;
     bufferReady = true;
     bufferModelId = change.id;
@@ -459,7 +496,7 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
     renderRemoteCursors();
     if (becameReady && state) render();
   });
-  bufferClient.onAwareness(() => renderRemoteCursors());
+  const offAwareness = bufferClient.onAwareness(() => renderRemoteCursors());
   const bufferScheme = location.protocol === "https:" ? "wss" : "ws";
   const bufferLink = bufferClient.run(
     `${bufferScheme}://${location.host}/ws/buffers/${encodeURIComponent(actorId)}`,
@@ -509,11 +546,13 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
     draft?.document ?? state?.document;
 
   const showMessage = (value: string, error = false) => {
+    if (stopped) return;
     message.textContent = value;
     message.classList.toggle("studio-error", error);
   };
 
   const refreshHistory = async () => {
+    if (stopped) return;
     const request = ++historyRequest;
     if (draft || accessRole === "read") {
       undoEdit.disabled = true;
@@ -528,13 +567,13 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
       can_undo: boolean;
       can_redo: boolean;
     };
-    if (request !== historyRequest || draft) return;
+    if (stopped || request !== historyRequest || draft) return;
     undoEdit.disabled = !available.can_undo;
     redoEdit.disabled = !available.can_redo;
   };
 
   const changeHistory = async (action: "undo" | "redo") => {
-    if (!state || draft) return;
+    if (stopped || !state || draft) return;
     undoEdit.disabled = true;
     redoEdit.disabled = true;
     const response = await fetch(`/api/history/${action}`, {
@@ -554,14 +593,14 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
     showMessage(`${action === "undo" ? "Undo" : "Redo"} accepted.`);
   };
 
-  undoEdit.addEventListener("click", () => void changeHistory("undo"));
-  redoEdit.addEventListener("click", () => void changeHistory("redo"));
+  listen(undoEdit, "click", () => void changeHistory("undo"));
+  listen(redoEdit, "click", () => void changeHistory("redo"));
 
   const schemaFor = (tag: string): ComponentSchema | undefined =>
     catalog?.components.find((component) => component.tag === tag);
 
   const submitOperations = async (operations: unknown[]): Promise<boolean> => {
-    if (!state) return false;
+    if (stopped || !state) return false;
     const response = await fetch("/api/drafts", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -578,6 +617,7 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
       base_revision: number;
       document: StudioDocument;
     };
+    if (stopped) return false;
     if (!response.ok) {
       showMessage(result.error ?? "Edit failed", true);
       return false;
@@ -598,7 +638,7 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
   };
 
   const finishDraft = async (action: "commit" | "discard") => {
-    if (!draft) return;
+    if (stopped || !draft) return;
     const response = await fetch(
       `/api/drafts/${encodeURIComponent(draft.preview_id)}/${action}`,
       {
@@ -636,10 +676,11 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
     }
   };
 
-  commitDraft.addEventListener("click", () => void finishDraft("commit"));
-  discardDraft.addEventListener("click", () => void finishDraft("discard"));
+  listen(commitDraft, "click", () => void finishDraft("commit"));
+  listen(discardDraft, "click", () => void finishDraft("discard"));
 
   const recoverDraft = async () => {
+    if (stopped) return;
     const draftAtStart = draft;
     const response = await fetch(
       `/api/drafts?actor_id=${encodeURIComponent(actorId)}`,
@@ -728,8 +769,8 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
       control.dataset.dirty = "true";
       onEdit(control.value);
     };
-    control.addEventListener("input", markDirty);
-    control.addEventListener("change", markDirty);
+    listen(control, "input", markDirty);
+    listen(control, "change", markDirty);
     return control;
   };
 
@@ -775,7 +816,7 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
         const unset = document.createElement("button");
         unset.type = "button";
         unset.textContent = "Unset";
-        unset.addEventListener("click", () => {
+        listen(unset, "click", () => {
           pending?.delete(property.name);
           void postOperations([
             { kind: "unset_prop", id: node.id, name: property.name },
@@ -974,12 +1015,12 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
       }
     };
     for (const control of [property, field, event])
-      control.addEventListener("change", persist);
-    mode.addEventListener("change", () => {
+      listen(control, "change", persist);
+    listen(mode, "change", () => {
       configureEvent();
       persist();
     });
-    remove.addEventListener("click", () => {
+    listen(remove, "click", () => {
       if (!storedName) {
         row.remove();
         return;
@@ -1085,12 +1126,12 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
       }
     };
     for (const control of [eventName, field, detail])
-      control.addEventListener("change", persist);
-    kind.addEventListener("change", () => {
+      listen(control, "change", persist);
+    listen(kind, "change", () => {
       configureDetail();
       persist();
     });
-    remove.addEventListener("click", () => {
+    listen(remove, "click", () => {
       if (!storedName) {
         row.remove();
         return;
@@ -1134,7 +1175,7 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
     return true;
   };
   for (const controls of [bindingControls, eventControls])
-    controls.addEventListener("focusout", scheduleBehaviorControls);
+    listen(controls, "focusout", scheduleBehaviorControls);
 
   renderBehaviorControls = (node: StudioNode) => {
     let bindings = node.bindings;
@@ -1172,13 +1213,13 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
       : "Edit the complete validated action map.";
   };
 
-  addBinding.addEventListener("click", () => {
+  listen(addBinding, "click", () => {
     bindingControls.append(renderBindingRow());
     bindingControls
       .querySelector<HTMLInputElement>(".studio-binding-row:last-child input")
       ?.focus();
   });
-  addEvent.addEventListener("click", () => {
+  listen(addEvent, "click", () => {
     eventControls.append(renderEventRow());
     eventControls
       .querySelector<HTMLInputElement>(".studio-event-row:last-child input")
@@ -1276,7 +1317,7 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
     treeStore.set("treeItems", flattenTree(active.root, selectedId));
   };
 
-  tree.addEventListener("click", (event) => {
+  listen(tree, "click", (event) => {
     const target =
       event.target instanceof Element
         ? event.target.closest<HTMLElement>("[data-studio-tree-id]")
@@ -1287,7 +1328,7 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
 
   const render = () => {
     const active = activeDocument();
-    if (!active || !state) return;
+    if (stopped || !active || !state) return;
     const nextTree = compileNode(active.root, transport.toValue);
     if (!canvasStore) canvasStore = new runtime.Store(active.state);
     else {
@@ -1328,7 +1369,7 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
     else select(active.root.id);
   };
 
-  form.addEventListener("submit", (event) => {
+  listen(form, "submit", (event) => {
     event.preventDefault();
     if (!selectedId) return;
     const operations: unknown[] = [];
@@ -1386,7 +1427,7 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
     });
   });
 
-  applyState.addEventListener("click", () => {
+  listen(applyState, "click", () => {
     const active = activeDocument();
     if (!active) return;
     try {
@@ -1415,7 +1456,7 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
     }
   });
 
-  addComponent.addEventListener("click", () => {
+  listen(addComponent, "click", () => {
     if (!selectedId) return;
     const parent = findNode(activeDocument()!.root, selectedId);
     const slot = componentSlot.value;
@@ -1452,7 +1493,7 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
     });
   });
 
-  moveUp.addEventListener("click", () => {
+  listen(moveUp, "click", () => {
     if (!selectedId) return;
     const location = findLocation(activeDocument()!.root, selectedId);
     if (!location || location.index === 0) return;
@@ -1467,7 +1508,7 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
     ]);
   });
 
-  moveDown.addEventListener("click", () => {
+  listen(moveDown, "click", () => {
     if (!selectedId) return;
     const location = findLocation(activeDocument()!.root, selectedId);
     if (
@@ -1522,6 +1563,7 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
         string,
         Record<string, JsonValue>
       >,
+      event_options: structuredClone(node.event_options ?? {}),
       slots: Object.fromEntries(
         Object.entries(node.slots).map(([slot, children]) => [
           slot,
@@ -1532,7 +1574,7 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
     return clone(source);
   };
 
-  duplicate.addEventListener("click", () => {
+  listen(duplicate, "click", () => {
     if (!selectedId) return;
     const active = activeDocument();
     if (!active) return;
@@ -1554,11 +1596,12 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
     });
   });
 
-  remove.addEventListener("click", () => {
+  listen(remove, "click", () => {
     if (selectedId) void postOperations([{ kind: "remove", id: selectedId }]);
   });
 
-  canvas.addEventListener(
+  listen(
+    canvas,
     "click",
     (event) => {
       const target =
@@ -1576,6 +1619,7 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
     .then(async (response) => {
       if (!response.ok) throw new Error("Component catalog failed to load.");
       catalog = (await response.json()) as ComponentCatalog;
+      if (stopped) return;
       catalogReady = true;
       renderComponentOptions();
       if (state) render();
@@ -1595,6 +1639,7 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
       const access = (await response.json()) as {
         role: "read" | "edit" | "admin";
       };
+      if (stopped) return;
       accessRole = access.role;
       accessReady = true;
       if (state) render();
@@ -1608,9 +1653,9 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
       );
     });
 
-  const client = new transport.Client();
-  client.onConnect(() => void recoverDraft());
-  client.onChange((change) => {
+  const client = new StudioClient();
+  const offConnect = client.onConnect(() => void recoverDraft());
+  const offChange = client.onChange((change) => {
     state = transport.fromValue(client.value(change.id)) as StudioState;
     if (
       committedRevision !== undefined &&
@@ -1626,12 +1671,21 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
 
   return {
     stop() {
+      if (stopped) return;
+      stopped = true;
+      listeners.abort();
+      offConnect();
+      offChange();
+      offBufferChange();
+      offAwareness();
       if (bufferModelId !== undefined)
         bufferClient.setAwareness(bufferModelId, null);
       link.stop();
       bufferLink.stop();
-      root?.remove();
-      treeRoot.remove();
+      client.close();
+      bufferClient.close();
+      if (root) runtime.unmount(root);
+      runtime.unmount(treeRoot);
     },
   };
 }

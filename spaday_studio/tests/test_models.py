@@ -144,6 +144,38 @@ def test_behavior_operations_use_shared_core_validation(operation):
         parse_operations([operation])
 
 
+def test_event_options_compile_and_survive_action_edits_until_explicitly_cleared():
+    operation = {"kind": "set_event", "id": "a", "name": "click", "action": {"kind": "toggle-field", "field": "open"}}
+    options = {"capture": True, "once": True, "passive": False}
+    edited = apply_operations(document(), parse_operations([{**operation, "options": options}]))
+    node = edited.component().to_node()["slots"]["default"][0]
+    assert node["event_options"]["click"] == options
+
+    preserved = apply_operations(edited, parse_operations([operation]))
+    assert find_node(preserved.root, "a").event_options == {"click": options}
+    cleared = apply_operations(preserved, parse_operations([{**operation, "options": {}}]))
+    assert find_node(cleared.root, "a").event_options == {}
+    assert "event_options" not in cleared.component().to_node()["slots"]["default"][0]
+    removed = apply_operations(edited, parse_operations([{"kind": "unset_event", "id": "a", "name": "click"}]))
+    assert find_node(removed.root, "a").event_options == {}
+    assert find_node(removed.root, "a").events == {}
+    assert find_node(edited.root, "a").event_options == {"click": options}
+
+
+@pytest.mark.parametrize("options", [{"capture": "false"}, {"once": 1}, {"passive": None}, {"unknown": True}])
+def test_event_options_reject_unknown_flags_and_non_booleans(options):
+    action = {"kind": "toggle-field", "field": "open"}
+    with pytest.raises(ValidationError):
+        StudioNode(id="button", tag="button", events={"click": action}, event_options={"click": options})
+    with pytest.raises(ValidationError):
+        parse_operations([{"kind": "set_event", "id": "a", "name": "click", "action": action, "options": options}])
+
+
+def test_event_options_require_a_matching_action():
+    with pytest.raises(ValidationError, match="matching event action"):
+        StudioNode(id="button", tag="button", event_options={"click": {"once": True}})
+
+
 def test_document_rejects_event_targets_that_are_not_in_the_tree():
     with pytest.raises(ValidationError, match="event 'click' references missing component 'missing'"):
         StudioDocument(

@@ -23,6 +23,7 @@ def document() -> StudioDocument:
                         props={"textContent": "Hello"},
                         bindings={"textContent": {"field": "message", "mode": "one-way"}},
                         events={"click": {"kind": "toggle-field", "field": "open"}},
+                        event_options={"click": {"capture": True, "once": True, "passive": False}},
                     )
                 ],
             },
