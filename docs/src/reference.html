@@ -282,7 +282,11 @@
 <td><p><code class="docutils literal notranslate"><span class="pre">dict[str,</span> <span class="pre">dict[str,</span> <span class="pre">JsonValue]]</span></code></p></td>
 <td><p>Core-validated Spaday actions by event name.</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">slots</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">event_options</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">dict[str,</span> <span class="pre">dict[str,</span> <span class="pre">bool]]</span></code></p></td>
+<td><p>Listener flags by event name: <code class="docutils literal notranslate"><span class="pre">capture</span></code>, <code class="docutils literal notranslate"><span class="pre">once</span></code>, <code class="docutils literal notranslate"><span class="pre">passive</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">slots</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">dict[str,</span> <span class="pre">list[StudioNode]]</span></code></p></td>
 <td><p>Ordered children grouped by named Spaday slot.</p></td>
 </tr>
@@ -290,7 +294,9 @@
 </table>
 </div>
 <p>Compilation adds <code class="docutils literal notranslate"><span class="pre">data-spaday-studio-id</span></code> and uses <code class="docutils literal notranslate"><span class="pre">id</span></code> as the default reconciliation key. Authored
-property values are converted to spaday’s tagged wire representation by the normal component API.</p>
+property values are converted to spaday’s tagged wire representation by the normal component API.
+Listener flags must be booleans and refer to an existing event action. Missing flags use browser
+defaults. Options are retained by browser compilation, duplication, project persistence, and Python export.</p>
 </section>
 <section id="operations">
 <h2>Operations<a class="headerlink" href="#operations" title="Link to this heading">¶</a></h2>
@@ -366,6 +372,10 @@ property values are converted to spaday’s tagged wire representation by the no
 <p><code class="docutils literal notranslate"><span class="pre">insert</span></code> and <code class="docutils literal notranslate"><span class="pre">move</span></code> accept one optional position: <code class="docutils literal notranslate"><span class="pre">index</span></code>, <code class="docutils literal notranslate"><span class="pre">before_id</span></code>, or <code class="docutils literal notranslate"><span class="pre">after_id</span></code>. No position
 appends to the destination slot. Anchors refer to stable Studio IDs and behave better than indices when
 other edits change the collection.</p>
+<p><code class="docutils literal notranslate"><span class="pre">set_event</span></code> accepts optional <code class="docutils literal notranslate"><span class="pre">options</span></code>, a map of <code class="docutils literal notranslate"><span class="pre">capture</span></code>, <code class="docutils literal notranslate"><span class="pre">once</span></code>, and <code class="docutils literal notranslate"><span class="pre">passive</span></code> flags. Omitted or
+<code class="docutils literal notranslate"><span class="pre">null</span></code> options preserve existing flags; <code class="docutils literal notranslate"><span class="pre">{}</span></code> clears them. <code class="docutils literal notranslate"><span class="pre">unset_event</span></code> removes the action and its flags.
+Listener options are authored through documents and operations. The browser action editor preserves
+options when changing an existing action; a renamed event is a new event with default options.</p>
 <p>Operation batches are atomic. Unknown IDs, duplicate IDs, invalid indices, root removal, root movement,
 and malformed values reject the complete batch.</p>
 </section>
@@ -495,7 +505,7 @@ and malformed values reject the complete batch.</p>
 
 <dl class="py class">
 <dt class="sig sig-object py" id="spaday_studio.StudioNode">
-<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">spaday_studio.</span></span><span class="sig-name descname"><span class="pre">StudioNode</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="pre">*,</span> <span class="pre">id:</span> <span class="pre">~typing.Annotated[str,</span> <span class="pre">~annotated_types.MinLen(min_length=1)],</span> <span class="pre">tag:</span> <span class="pre">~typing.Annotated[str,</span> <span class="pre">~annotated_types.MinLen(min_length=1)],</span> <span class="pre">key:</span> <span class="pre">str</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">None,</span> <span class="pre">props:</span> <span class="pre">dict[str,</span> <span class="pre">JsonValue]</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;,</span> <span class="pre">bindings:</span> <span class="pre">dict[str,</span> <span class="pre">dict[str,</span> <span class="pre">JsonValue]]</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;,</span> <span class="pre">events:</span> <span class="pre">dict[str,</span> <span class="pre">dict[str,</span> <span class="pre">JsonValue]]</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;,</span> <span class="pre">slots:</span> <span class="pre">dict[str,</span> <span class="pre">list[~spaday_studio.models.StudioNode]]</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/spaday_studio/models.html#StudioNode"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#spaday_studio.StudioNode" title="Link to this definition">¶</a></dt>
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">spaday_studio.</span></span><span class="sig-name descname"><span class="pre">StudioNode</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="pre">*,</span> <span class="pre">id:</span> <span class="pre">~typing.Annotated[str,</span> <span class="pre">~annotated_types.MinLen(min_length=1)],</span> <span class="pre">tag:</span> <span class="pre">~typing.Annotated[str,</span> <span class="pre">~annotated_types.MinLen(min_length=1)],</span> <span class="pre">key:</span> <span class="pre">str</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">None,</span> <span class="pre">props:</span> <span class="pre">dict[str,</span> <span class="pre">JsonValue]</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;,</span> <span class="pre">bindings:</span> <span class="pre">dict[str,</span> <span class="pre">dict[str,</span> <span class="pre">JsonValue]]</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;,</span> <span class="pre">events:</span> <span class="pre">dict[str,</span> <span class="pre">dict[str,</span> <span class="pre">JsonValue]]</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;,</span> <span class="pre">event_options:</span> <span class="pre">dict[str,</span> <span class="pre">dict[~typing.Literal['capture',</span> <span class="pre">'once',</span> <span class="pre">'passive'],</span> <span class="pre">~typing.Annotated[bool,</span> <span class="pre">~pydantic.types.Strict(strict=True)]]]</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;,</span> <span class="pre">slots:</span> <span class="pre">dict[str,</span> <span class="pre">list[~spaday_studio.models.StudioNode]]</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/spaday_studio/models.html#StudioNode"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#spaday_studio.StudioNode" title="Link to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">BaseModel</span></code></p>
 <p>One editable component in a Studio document.</p>
 <dl class="py method">
@@ -670,6 +680,9 @@ It maps Python constructor parameters to their emitted wire property names and c
 </section>
 <section id="http-and-websocket-endpoints">
 <h2>HTTP and WebSocket endpoints<a class="headerlink" href="#http-and-websocket-endpoints" title="Link to this heading">¶</a></h2>
+<p>The browser’s <code class="docutils literal notranslate"><span class="pre">connectStudio()</span></code> handle has an idempotent <code class="docutils literal notranslate"><span class="pre">stop()</span></code> method. It removes editor listeners,
+unsubscribes transports callbacks, stops reconnect loops, closes both sockets, and unmounts the canvas
+and component tree through Spaday. Late responses cannot remount stopped roots.</p>
 <div class="table-wrapper colwidths-auto docutils container">
 <table class="docutils align-default">
 <thead>

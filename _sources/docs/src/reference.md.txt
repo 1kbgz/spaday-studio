@@ -6,18 +6,21 @@
 
 `StudioNode` fields are:
 
-| Field      | Type                              | Description                                    |
-| ---------- | --------------------------------- | ---------------------------------------------- |
-| `id`       | `str`                             | Globally unique stable authoring identity.     |
-| `tag`      | `str`                             | HTML or registered custom-element tag.         |
-| `key`      | `str \| None`                     | Optional sibling reconciliation key.           |
-| `props`    | `dict[str, JsonValue]`            | Untagged authored property values.             |
-| `bindings` | `dict[str, dict[str, JsonValue]]` | Core-validated Spaday bindings by target prop. |
-| `events`   | `dict[str, dict[str, JsonValue]]` | Core-validated Spaday actions by event name.   |
-| `slots`    | `dict[str, list[StudioNode]]`     | Ordered children grouped by named Spaday slot. |
+| Field           | Type                              | Description                                                 |
+| --------------- | --------------------------------- | ----------------------------------------------------------- |
+| `id`            | `str`                             | Globally unique stable authoring identity.                  |
+| `tag`           | `str`                             | HTML or registered custom-element tag.                      |
+| `key`           | `str \| None`                     | Optional sibling reconciliation key.                        |
+| `props`         | `dict[str, JsonValue]`            | Untagged authored property values.                          |
+| `bindings`      | `dict[str, dict[str, JsonValue]]` | Core-validated Spaday bindings by target prop.              |
+| `events`        | `dict[str, dict[str, JsonValue]]` | Core-validated Spaday actions by event name.                |
+| `event_options` | `dict[str, dict[str, bool]]`      | Listener flags by event name: `capture`, `once`, `passive`. |
+| `slots`         | `dict[str, list[StudioNode]]`     | Ordered children grouped by named Spaday slot.              |
 
 Compilation adds `data-spaday-studio-id` and uses `id` as the default reconciliation key. Authored
 property values are converted to spaday's tagged wire representation by the normal component API.
+Listener flags must be booleans and refer to an existing event action. Missing flags use browser
+defaults. Options are retained by browser compilation, duplication, project persistence, and Python export.
 
 ## Operations
 
@@ -43,6 +46,11 @@ All operation models reject unknown fields.
 `insert` and `move` accept one optional position: `index`, `before_id`, or `after_id`. No position
 appends to the destination slot. Anchors refer to stable Studio IDs and behave better than indices when
 other edits change the collection.
+
+`set_event` accepts optional `options`, a map of `capture`, `once`, and `passive` flags. Omitted or
+`null` options preserve existing flags; `{}` clears them. `unset_event` removes the action and its flags.
+Listener options are authored through documents and operations. The browser action editor preserves
+options when changing an existing action; a renamed event is a new event with default options.
 
 Operation batches are atomic. Unknown IDs, duplicate IDs, invalid indices, root removal, root movement,
 and malformed values reject the complete batch.
@@ -127,6 +135,10 @@ Built-in HTML schemas are always present. Common properties are `id`, `class`, `
 ```
 
 ## HTTP and WebSocket endpoints
+
+The browser's `connectStudio()` handle has an idempotent `stop()` method. It removes editor listeners,
+unsubscribes transports callbacks, stops reconnect loops, closes both sockets, and unmounts the canvas
+and component tree through Spaday. Late responses cannot remount stopped roots.
 
 | Endpoint                        | Purpose                                            |
 | ------------------------------- | -------------------------------------------------- |
