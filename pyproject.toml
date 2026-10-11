@@ -99,12 +99,8 @@ replace = '"version": "{new_version}"'
 [tool.coverage.run]
 branch = true
 omit = [
-<<<<<<< before updating
     "spaday_studio/example.py",
-    "spaday_studio/tests/integration/",
-=======
     "spaday_studio/tests/integration/*",
->>>>>>> after updating
 ]
 
 [tool.coverage.report]
