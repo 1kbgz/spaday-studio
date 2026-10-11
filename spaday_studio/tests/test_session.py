@@ -337,4 +337,6 @@ def test_actor_can_recover_its_active_private_draft():
     ],
 )
 def test_conflict_reasons_cover_semantic_and_structural_overlap(draft, accepted, message):
-    assert message in _conflict_reason(parse_operations(draft), parse_operations(accepted))
+    reason = _conflict_reason(parse_operations(draft), parse_operations(accepted))
+    assert reason is not None
+    assert message in reason

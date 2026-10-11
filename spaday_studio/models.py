@@ -417,7 +417,8 @@ def _anchor_index(children: list[StudioNode], anchor_id: str) -> int:
 
 def _id_references(value: JsonValue) -> list[str]:
     if isinstance(value, dict):
-        references = [value["id"]] if value.get("ref") == "id" and isinstance(value.get("id"), str) else []
+        reference = value.get("id")
+        references = [reference] if value.get("ref") == "id" and isinstance(reference, str) else []
         for nested in value.values():
             references.extend(_id_references(nested))
         return references

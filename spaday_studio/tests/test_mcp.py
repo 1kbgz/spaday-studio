@@ -1,6 +1,6 @@
 import asyncio
 
-from mcp.types import CallToolResult
+from mcp.types import CallToolResult, InputRequiredResult
 
 from spaday_studio.example import document
 from spaday_studio.mcp import create_mcp
@@ -71,11 +71,15 @@ def test_mcp_exposes_compact_component_lists_and_individual_schemas():
 def test_mcp_resources_and_mutating_tools_follow_the_draft_lifecycle():
     async def lifecycle() -> None:
         server = create_mcp(StudioSession(document.model_copy(deep=True)))
-        assert await server.read_resource("spaday://project")
-        assert await server.read_resource("spaday://catalog")
+        for uri in ("spaday://project", "spaday://catalog"):
+            contents = await server.read_resource(uri)
+            assert not isinstance(contents, InputRequiredResult)
+            assert list(contents)
 
         operation = {"kind": "set_prop", "id": "headline", "name": "textContent", "value": "Draft"}
         preview = await server.call_tool("preview_operations", {"expected_revision": 0, "operations": [operation]})
+        assert isinstance(preview, CallToolResult)
+        assert preview.structured_content is not None
         preview_id = preview.structured_content["preview_id"]
         updated = await server.call_tool(
             "preview_operations",
@@ -85,8 +89,12 @@ def test_mcp_resources_and_mutating_tools_follow_the_draft_lifecycle():
                 "operations": [{"kind": "set_prop", "id": "app", "name": "title", "value": "Updated"}],
             },
         )
+        assert isinstance(updated, CallToolResult)
+        assert updated.structured_content is not None
         assert updated.structured_content["document"]["root"]["props"]["title"] == "Updated"
         committed = await server.call_tool("commit_preview", {"preview_id": preview_id})
+        assert isinstance(committed, CallToolResult)
+        assert committed.structured_content is not None
         assert committed.structured_content["revision"] == 1
 
         applied = await server.call_tool(
@@ -96,19 +104,31 @@ def test_mcp_resources_and_mutating_tools_follow_the_draft_lifecycle():
                 "operations": [{"kind": "set_state", "name": "ready", "value": True}],
             },
         )
+        assert isinstance(applied, CallToolResult)
+        assert applied.structured_content is not None
         assert applied.structured_content["revision"] == 2
         undone = await server.call_tool("undo", {"expected_revision": 2})
+        assert isinstance(undone, CallToolResult)
+        assert undone.structured_content is not None
         assert undone.structured_content["revision"] == 3
         history = await server.call_tool("history", {})
+        assert isinstance(history, CallToolResult)
+        assert history.structured_content is not None
         assert history.structured_content == {"can_undo": True, "can_redo": True}
         redone = await server.call_tool("redo", {"expected_revision": 3})
+        assert isinstance(redone, CallToolResult)
+        assert redone.structured_content is not None
         assert redone.structured_content["revision"] == 4
 
         discarded = await server.call_tool(
             "preview_operations",
             {"expected_revision": 4, "operations": [operation]},
         )
+        assert isinstance(discarded, CallToolResult)
+        assert discarded.structured_content is not None
         result = await server.call_tool("discard_preview", {"preview_id": discarded.structured_content["preview_id"]})
+        assert isinstance(result, CallToolResult)
+        assert result.structured_content is not None
         assert result.structured_content["revision"] == 4
 
     asyncio.run(lifecycle())

@@ -111,17 +111,19 @@ def _module_components(package: str, module: types.ModuleType) -> list[Component
 
 def _class_schema(package: str, name: str, component_class: type[Component]) -> ComponentSchema:
     if component_class.schema is not None:
-        props = {
+        props: dict[str, PropertySchema] = {
             prop.name: PropertySchema(name=prop.name, kind=prop.kind, choices=list(prop.choices))
             for prop in (*component_class.schema.props, *component_class.schema.fields)
         }
         props.update({prop.name: _copy_prop(prop) for prop in _COMMON_PROPS if prop.name not in props})
+        ordered_props = list(props.values())
+        ordered_props.sort(key=lambda prop: prop.name)
         return ComponentSchema(
             package=package,
             tag=component_class.tag,
             class_name=name,
             summary=component_class.schema.summary,
-            props=sorted(props.values(), key=lambda prop: prop.name),
+            props=ordered_props,
             events=list(component_class.schema.events),
             slots=list(component_class.schema.slots),
         )
@@ -130,7 +132,7 @@ def _class_schema(package: str, name: str, component_class: type[Component]) -> 
         hints = get_type_hints(component_class.__init__)
     except (NameError, TypeError):
         hints = {}
-    props: dict[str, PropertySchema] = {prop.name: _copy_prop(prop) for prop in _COMMON_PROPS}
+    props = {prop.name: _copy_prop(prop) for prop in _COMMON_PROPS}
     for parameter in signature.parameters.values():
         if parameter.name in {"self", "children", "key", "props"} or parameter.kind not in {
             inspect.Parameter.POSITIONAL_OR_KEYWORD,

@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import html
-from collections.abc import AsyncIterator, Sequence
+from collections.abc import AsyncGenerator, Sequence
 from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 
@@ -248,7 +248,7 @@ def create_app(
         await buffer_endpoint(websocket)
 
     @asynccontextmanager
-    async def lifespan(_app: Starlette) -> AsyncIterator[None]:
+    async def lifespan(_app: Starlette) -> AsyncGenerator[None, None]:
         sync_task = asyncio.create_task(transports.autosync(broadcaster))
         buffer_task = asyncio.create_task(transports.autosync(buffer_hub))
         try:
