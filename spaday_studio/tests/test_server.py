@@ -25,7 +25,8 @@ class DemoButton(Component):
 def test_buffer_cleanup_keeps_current_and_active_draft_revisions():
     hub = transports.Hub(key=lambda connection: connection)
     model_id = hub.share(
-        {},
+        transports.to_value({}),
+        type_name="StudioBuffers",
         crdt_spec=transports.CrdtSpec({"kind": "map", "values": {"kind": "sequence", "materialization": "string"}}),
     )
     hub.mutate_shared_crdt(
@@ -299,7 +300,11 @@ def test_private_draft_update_discard_and_error_endpoints():
             json={"actor_id": "browser-a"},
         )
         with client.websocket_connect("/ws/buffers/browser-a") as websocket:
-            assert websocket.receive_json()["t"] == "crdt_snapshot"
+            snapshot = websocket.receive_json()
+            assert snapshot["t"] == "crdt_snapshot"
+            assert snapshot["type"] == "StudioBuffers"
+            assert snapshot["value"] == {"Map": {}}
+            assert snapshot["spec"]["root"]["values"]["materialization"] == "string"
 
     assert malformed.status_code == 422
     assert updated.status_code == 200

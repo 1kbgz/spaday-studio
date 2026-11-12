@@ -98,7 +98,8 @@ def create_app(
     broadcaster = transports.Server(transport_session)
     buffer_hub = transports.Hub(key=lambda websocket: websocket.path_params["actor_id"])
     buffer_id = buffer_hub.share(
-        {},
+        transports.to_value({}),
+        type_name="StudioBuffers",
         crdt_spec=transports.CrdtSpec(
             {
                 "kind": "map",
