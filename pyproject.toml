@@ -32,10 +32,10 @@ classifiers = [
 dependencies = [
     "mcp>=2,<3",
     "pydantic>=2",
-    "spaday>=0.12.0,<1.0",
+    "spaday>=0.14.2,<1.0",
     "spaday-codemirror>=0.2,<0.3",
     "starlette",
-    "transports>=0.12.2,<0.13",
+    "transports>=0.12.3,<0.13",
 ]
 
 [project.entry-points."spaday.component_packages"]
