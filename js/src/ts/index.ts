@@ -97,13 +97,22 @@ interface RuntimeModule {
 interface ClientMirror {
   onChange(listener: (change: { id: number }) => void): () => void;
   onConnect(listener: () => void): () => void;
+  onDisconnect(listener: () => void): () => void;
   onAwareness(
     listener: (change: { id: number; peer: string; state: unknown }) => void,
+    options?: { scope: string },
   ): () => void;
-  awareness(id: number): ReadonlyMap<string, unknown>;
+  awareness(
+    id: number,
+    options?: { scope: string },
+  ): ReadonlyMap<string, unknown>;
   ids(): number[];
   proposeCrdt(id: number, mutations: unknown[]): boolean;
-  setAwareness(id: number, state: unknown | null): boolean;
+  setAwareness(
+    id: number,
+    state: unknown | null,
+    options?: { scope: string },
+  ): boolean;
   value(id: number): unknown;
   connect(url: string): WebSocket;
   run(url: string, options?: { onMessage?: () => void }): { stop(): void };
@@ -404,18 +413,24 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
   const publishCursor = (editor: JsonEditor) => {
     const key = bufferKeys.get(editor);
     if (!key || bufferModelId === undefined || !editor.selection) return;
-    bufferClient.setAwareness(bufferModelId, {
-      buffer: key,
-      selection: editor.selection,
-      name: actorId.slice(0, 8),
-      color: actorColor,
-    });
+    bufferClient.setAwareness(
+      bufferModelId,
+      {
+        buffer: key,
+        selection: editor.selection,
+        name: actorId.slice(0, 8),
+        color: actorColor,
+      },
+      { scope: "editor" },
+    );
   };
 
   const renderRemoteCursors = () => {
     if (bufferModelId === undefined) return;
     for (const [editor, key] of bufferKeys) {
-      editor.remote_cursors = [...bufferClient.awareness(bufferModelId)]
+      editor.remote_cursors = [
+        ...bufferClient.awareness(bufferModelId, { scope: "editor" }),
+      ]
         .filter(([, value]) => {
           const candidate = value as {
             buffer?: unknown;
@@ -496,7 +511,10 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
     renderRemoteCursors();
     if (becameReady && state) render();
   });
-  const offAwareness = bufferClient.onAwareness(() => renderRemoteCursors());
+  const offAwareness = bufferClient.onAwareness(() => renderRemoteCursors(), {
+    scope: "editor",
+  });
+  const offBufferDisconnect = bufferClient.onDisconnect(renderRemoteCursors);
   const bufferScheme = location.protocol === "https:" ? "wss" : "ws";
   const bufferLink = bufferClient.run(
     `${bufferScheme}://${location.host}/ws/buffers/${encodeURIComponent(actorId)}`,
@@ -1678,8 +1696,9 @@ export function connectStudio({ runtime, transport }: ConnectOptions): {
       offChange();
       offBufferChange();
       offAwareness();
+      offBufferDisconnect();
       if (bufferModelId !== undefined)
-        bufferClient.setAwareness(bufferModelId, null);
+        bufferClient.setAwareness(bufferModelId, null, { scope: "editor" });
       link.stop();
       bufferLink.stop();
       client.close();
