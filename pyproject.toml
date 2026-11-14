@@ -33,7 +33,7 @@ dependencies = [
     "mcp>=2,<3",
     "pydantic>=2",
     "spaday>=0.14.2,<1.0",
-    "spaday-codemirror>=0.2,<0.3",
+    "spaday-codemirror>=0.2,<0.4",
     "starlette",
     "transports>=0.12.3,<0.13",
 ]
